@@ -1,0 +1,462 @@
+{
+  "name": "Ambica Pharma - Multi-Channel Notifications",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "notify-manager",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "n1a2b3c4-d5e6-f789-0123-456789abcdef",
+      "name": "Webhook - Notification Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "notify-manager"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process notification data and determine channels\nconst alert = $input.first().json.alert;\nconst recipients = $input.first().json.recipients || {};\nconst channels = $input.first().json.channels || ['email'];\nconst urgency = $input.first().json.urgency || 'normal';\n\n// Determine notification priority and channels based on severity\nlet notificationChannels = [];\nlet priority = 'normal';\n\nswitch(alert.severity) {\n  case 'critical':\n    notificationChannels = ['email', 'sms', 'whatsapp', 'slack', 'telegram'];\n    priority = 'immediate';\n    break;\n  case 'high':\n    notificationChannels = ['email', 'slack', 'telegram'];\n    priority = 'urgent';\n    break;\n  case 'medium':\n    notificationChannels = ['email', 'slack'];\n    priority = 'normal';\n    break;\n  case 'low':\n    notificationChannels = ['email'];\n    priority = 'low';\n    break;\n  default:\n    notificationChannels = channels;\n}\n\n// Create formatted messages for different channels\nconst emailSubject = `${alert.severity.toUpperCase()} Alert: ${alert.title}`;\nconst shortMessage = `🚨 ${alert.title}\\n${alert.message}`;\nconst detailedMessage = `\n**ALERT NOTIFICATION**\n\n**Severity:** ${alert.severity.toUpperCase()}\n**Type:** ${alert.type.replace('_', ' ').toUpperCase()}\n**Title:** ${alert.title}\n**Message:** ${alert.message}\n**Time:** ${new Date(alert.timestamp).toLocaleString('en-IN')}\n\n${alert.chemicalId ? `**Chemical ID:** ${alert.chemicalId}\\n` : ''}\n**Requires Action:** ${alert.actionRequired || false ? 'YES' : 'NO'}\n\n---\nAmbica Pharma Chem Inventory System\n`;\n\nreturn [{\n  json: {\n    alert: alert,\n    recipients: recipients,\n    channels: notificationChannels,\n    priority: priority,\n    messages: {\n      email: {\n        subject: emailSubject,\n        body: detailedMessage\n      },\n      sms: shortMessage.substring(0, 160), // SMS character limit\n      whatsapp: detailedMessage,\n      slack: detailedMessage,\n      telegram: detailedMessage\n    },\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "n2b3c4d5-e6f7-8901-2345-6789abcdef01",
+      "name": "Process Notification Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.channels}}",
+              "operation": "contains",
+              "value2": "email"
+            }
+          ]
+        }
+      },
+      "id": "n3c4d5e6-f7g8-9012-3456-789abcdef012",
+      "name": "Check Email Channel",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        680,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "alerts@ambicapharma.com",
+        "toEmail": "={{$json.recipients.managers ? $json.recipients.managers.join(',') : 'manager@ambicapharma.com'}}",
+        "subject": "={{$json.messages.email.subject}}",
+        "emailFormat": "html",
+        "html": "<!DOCTYPE html>\n<html>\n<head>\n    <style>\n        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }\n        .container { background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }\n        .header { text-align: center; padding: 20px; margin-bottom: 30px; border-radius: 8px; }\n        .critical { background-color: #fef2f2; border: 2px solid #ef4444; color: #dc2626; }\n        .high { background-color: #fff7ed; border: 2px solid #f97316; color: #ea580c; }\n        .medium { background-color: #fffbeb; border: 2px solid #f59e0b; color: #d97706; }\n        .low { background-color: #f0f9ff; border: 2px solid #3b82f6; color: #2563eb; }\n        .alert-details { background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0; }\n        .action-required { background-color: #fef2f2; padding: 15px; border-left: 4px solid #ef4444; margin: 20px 0; }\n        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px; }\n    </style>\n</head>\n<body>\n    <div class=\"container\">\n        <div class=\"header {{$json.alert.severity}}\">\n            <h1>🚨 INVENTORY ALERT</h1>\n            <h2>{{$json.alert.title}}</h2>\n            <p><strong>Severity: {{$json.alert.severity.toUpperCase()}}</strong></p>\n        </div>\n        \n        <div class=\"alert-details\">\n            <h3>Alert Details:</h3>\n            <p><strong>Type:</strong> {{$json.alert.type.replace('_', ' ').toUpperCase()}}</p>\n            <p><strong>Message:</strong> {{$json.alert.message}}</p>\n            <p><strong>Timestamp:</strong> {{$json.alert.timestamp}}</p>\n            {{#if $json.alert.chemicalId}}\n            <p><strong>Chemical ID:</strong> {{$json.alert.chemicalId}}</p>\n            {{/if}}\n        </div>\n        \n        {{#if $json.alert.actionRequired}}\n        <div class=\"action-required\">\n            <h3>⚡ IMMEDIATE ACTION REQUIRED</h3>\n            <p>This alert requires immediate attention. Please log into the inventory system and take appropriate action.</p>\n        </div>\n        {{/if}}\n        \n        <div style=\"text-align: center; margin: 30px 0;\">\n            <a href=\"http://your-dashboard-url.com\" style=\"background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;\">View in Dashboard</a>\n        </div>\n        \n        <div class=\"footer\">\n            <p><strong>Ambica Pharma Chem - Inventory Management System</strong></p>\n            <p>This is an automated alert. Please do not reply to this email.</p>\n            <p>For support, contact: support@ambicapharma.com | +91-22-12345678</p>\n        </div>\n    </div>\n</body>\n</html>"
+      },
+      "id": "n4d5e6f7-g8h9-0123-4567-89abcdef0123",
+      "name": "Send Email Alert",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.channels}}",
+              "operation": "contains",
+              "value2": "slack"
+            }
+          ]
+        }
+      },
+      "id": "n5e6f7g8-h9i0-1234-5678-9abcdef01234",
+      "name": "Check Slack Channel",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        680,
+        350
+      ]
+    },
+    {
+      "parameters": {
+        "channel": "#inventory-alerts",
+        "text": "={{$json.messages.slack}}",
+        "otherOptions": {\n          \"icon_emoji\": \":warning:\",\n          \"username\": \"Inventory Bot\"\n        }",
+        "attachments": [\n          {\n            \"color\": \"{{$json.alert.severity === 'critical' ? 'danger' : $json.alert.severity === 'high' ? 'warning' : 'good'}}\",\n            \"title\": \"{{$json.alert.title}}\",\n            \"text\": \"{{$json.alert.message}}\",\n            \"fields\": [\n              {\n                \"title\": \"Severity\",\n                \"value\": \"{{$json.alert.severity.toUpperCase()}}\",\n                \"short\": true\n              },\n              {\n                \"title\": \"Type\",\n                \"value\": \"{{$json.alert.type.replace('_', ' ').toUpperCase()}}\",\n                \"short\": true\n              },\n              {\n                \"title\": \"Time\",\n                \"value\": \"{{$json.alert.timestamp}}\",\n                \"short\": false\n              }\n            ],\n            \"actions\": [\n              {\n                \"type\": \"button\",\n                \"text\": \"View Dashboard\",\n                \"url\": \"http://your-dashboard-url.com\"\n              }\n            ]\n          }\n        ]
+      },
+      "id": "n6f7g8h9-i0j1-2345-6789-abcdef012345",
+      "name": "Send Slack Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 1,
+      "position": [
+        900,
+        350
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.channels}}",
+              "operation": "contains",
+              "value2": "telegram"
+            }
+          ]
+        }
+      },
+      "id": "n7g8h9i0-j1k2-3456-7890-bcdef0123456",
+      "name": "Check Telegram Channel",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        680,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "message": "={{$json.messages.telegram}}",
+        "chatId": "@ambica_inventory_alerts",
+        "parseMode": "Markdown",
+        "replyMarkup": {\n          \"inline_keyboard\": [\n            [\n              {\n                \"text\": \"🔍 View Dashboard\",\n                \"url\": \"http://your-dashboard-url.com\"\n              },\n              {\n                \"text\": \"✅ Acknowledge\",\n                \"callback_data\": \"ack_{{$json.alert.id}}\"\n              }\n            ]\n          ]\n        }
+      },
+      "id": "n8h9i0j1-k2l3-4567-8901-cdef01234567",
+      "name": "Send Telegram Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        900,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.channels}}",
+              "operation": "contains",
+              "value2": "whatsapp"
+            }
+          ]
+        }
+      },
+      "id": "n9i0j1k2-l3m4-5678-9012-def012345678",
+      "name": "Check WhatsApp Channel",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        680,
+        650
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.whatsapp.com/send",
+        "sendQuery": true,
+        "queryParameters": {\n          \"parameters\": [\n            {\n              \"name\": \"phone\",\n              \"value\": \"+919876543210\"\n            },\n            {\n              \"name\": \"text\",\n              \"value\": \"={{encodeURIComponent($json.messages.whatsapp)}}\"\n            }\n          ]\n        },
+        "sendHeaders": true,
+        "headerParameters": {\n          \"parameters\": [\n            {\n              \"name\": \"Authorization\",\n              \"value\": \"Bearer YOUR_WHATSAPP_API_TOKEN\"\n            }\n          ]\n        },
+        "options": {}
+      },
+      "id": "n0j1k2l3-m4n5-6789-0123-ef0123456789",
+      "name": "Send WhatsApp Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        900,
+        650
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.channels}}",
+              "operation": "contains",
+              "value2": "sms"
+            }
+          ]
+        }
+      },
+      "id": "n1k2l3m4-n5o6-7890-1234-f01234567890",
+      "name": "Check SMS Channel",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        680,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.twilio.com/2010-04-01/Accounts/YOUR_ACCOUNT_SID/Messages.json",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "twilioApi",
+        "sendBody": true,
+        "bodyContentType": "form-urlencoded",
+        "bodyParameters": {\n          \"parameters\": [\n            {\n              \"name\": \"From\",\n              \"value\": \"+1234567890\"\n            },\n            {\n              \"name\": \"To\",\n              \"value\": \"+919876543210\"\n            },\n            {\n              \"name\": \"Body\",\n              \"value\": \"={{$json.messages.sms}}\"\n            }\n          ]\n        },
+        "options": {}
+      },
+      "id": "n2l3m4n5-o6p7-8901-2345-012345678901",
+      "name": "Send SMS Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        900,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Collect results from all notification channels\nconst inputData = $input.all();\nconst originalData = inputData[0].json;\n\nlet channelsUsed = [];\nlet channelResults = {};\n\n// Process results from each channel\ninputData.forEach((item, index) => {\n  if (item.json.channel) {\n    channelsUsed.push(item.json.channel);\n    channelResults[item.json.channel] = {\n      success: item.json.success || true,\n      message: item.json.message || 'Sent successfully'\n    };\n  }\n});\n\n// Create activity log entry\nconst logEntry = {\n  id: `log-${Date.now()}`,\n  timestamp: new Date().toISOString(),\n  user: 'System',\n  action: 'Multi-Channel Alert Sent',\n  details: `Alert \"${originalData.alert.title}\" sent via ${channelsUsed.join(', ')}. Severity: ${originalData.alert.severity}. Recipients notified across ${channelsUsed.length} channel(s).`,\n  category: 'alert',\n  severity: originalData.alert.severity === 'critical' ? 'warning' : 'info',\n  alert_id: originalData.alert.id\n};\n\nreturn [{\n  json: {\n    alert: originalData.alert,\n    channels_used: channelsUsed,\n    results: channelResults,\n    logEntry: logEntry,\n    status: 'success',\n    message: `Alert sent successfully via ${channelsUsed.join(', ')}`\n  }\n}];"
+      },
+      "id": "n3m4n5o6-p7q8-9012-3456-123456789012",
+      "name": "Collect Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"{{$json.message}}\",\n  \"alert_id\": \"{{$json.alert.id}}\",\n  \"severity\": \"{{$json.alert.severity}}\",\n  \"channels_used\": {{JSON.stringify($json.channels_used)}},\n  \"notifications_sent\": {{$json.channels_used.length}},\n  \"timestamp\": \"{{$json.logEntry.timestamp}}\"\n}"
+      },
+      "id": "n4n5o6p7-q8r9-0123-4567-234567890123",
+      "name": "Respond to Dashboard",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        500
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Notification Trigger": {
+      "main": [
+        [
+          {
+            "node": "Process Notification Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Notification Data": {
+      "main": [
+        [
+          {
+            "node": "Check Email Channel",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Slack Channel",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Telegram Channel",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check WhatsApp Channel",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check SMS Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Email Channel": {
+      "main": [
+        [
+          {
+            "node": "Send Email Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Collect Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Slack Channel": {
+      "main": [
+        [
+          {
+            "node": "Send Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Collect Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Telegram Channel": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Collect Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check WhatsApp Channel": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Collect Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check SMS Channel": {
+      "main": [
+        [
+          {
+            "node": "Send SMS Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Collect Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email Alert": {
+      "main": [
+        [
+          {
+            "node": "Collect Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Slack Alert": {
+      "main": [
+        [
+          {
+            "node": "Collect Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Telegram Alert": {
+      "main": [
+        [
+          {
+            "node": "Collect Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp Alert": {
+      "main": [
+        [
+          {
+            "node": "Collect Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send SMS Alert": {
+      "main": [
+        [
+          {
+            "node": "Collect Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Results": {
+      "main": [
+        [
+          {
+            "node": "Respond to Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "createdAt": "2024-01-15T11:00:00.000Z",
+  "updatedAt": "2024-01-15T11:00:00.000Z",
+  "settings": {},
+  "staticData": null,
+  "tags": ["inventory", "notifications", "multi-channel", "alerts", "ambica-pharma"],
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "multi-channel-notifications-workflow"
+}

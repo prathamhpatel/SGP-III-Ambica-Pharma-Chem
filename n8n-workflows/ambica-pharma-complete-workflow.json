@@ -1,0 +1,601 @@
+{
+  "name": "Ambica Pharma - Complete Inventory Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "reorder-trigger",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "reorder-webhook-001",
+      "name": "Webhook - Reorder Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "reorder-trigger"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.chemical.urgency}}",
+              "operation": "equal",
+              "value2": "critical"
+            }
+          ]
+        }
+      },
+      "id": "reorder-check-urgency-001",
+      "name": "Reorder - Check Urgency",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Calculate recommended order quantity and urgency\nconst chemical = $input.first().json.chemical;\nconst currentStock = chemical.currentStock || 0;\nconst threshold = chemical.reorderThreshold || 0;\nconst recommendedQty = chemical.recommendedQuantity || (threshold * 2);\n\n// Determine supplier contact info\nconst supplierContacts = {\n  'ChemCorp Ltd': {\n    email: 'orders@chemcorp.com',\n    phone: '+91-9876543210',\n    contact: 'Rajesh Kumar'\n  },\n  'Industrial Chemicals Inc': {\n    email: 'procurement@indchem.com', \n    phone: '+91-9876543211',\n    contact: 'Priya Sharma'\n  },\n  'Solvent Solutions': {\n    email: 'orders@solventsol.com',\n    phone: '+91-9876543212',\n    contact: 'Amit Patel'\n  },\n  'Pure Chemicals Co': {\n    email: 'sales@purechem.com',\n    phone: '+91-9876543213',\n    contact: 'Sneha Gupta'\n  },\n  'Mineral Corp': {\n    email: 'orders@mineralcorp.com',\n    phone: '+91-9876543214',\n    contact: 'Vikram Singh'\n  },\n  'default': {\n    email: 'info@supplier.com',\n    phone: '+91-9876543200',\n    contact: 'Sales Team'\n  }\n};\n\nconst supplierInfo = supplierContacts[chemical.supplier] || supplierContacts.default;\n\n// Calculate estimated cost\nconst estimatedCost = recommendedQty * chemical.costPerUnit;\n\n// Generate PO number\nconst poNumber = `PO-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;\n\nreturn [{\n  json: {\n    reorderData: {\n      chemical: chemical,\n      poNumber: poNumber,\n      recommendedQuantity: recommendedQty,\n      estimatedCost: estimatedCost,\n      supplier: supplierInfo,\n      urgency: currentStock === 0 ? 'critical' : 'normal',\n      requiredBy: new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)).toISOString(),\n      createdAt: new Date().toISOString()\n    }\n  }\n}];"
+      },
+      "id": "reorder-process-data-001",
+      "name": "Reorder - Process Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "noreply@ambicapharma.com",
+        "toEmail": "={{$json.reorderData.supplier.email}}",
+        "subject": "Urgent Purchase Order - {{$json.reorderData.chemical.name}}",
+        "emailFormat": "html",
+        "html": "<!DOCTYPE html>\n<html>\n<head>\n    <style>\n        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }\n        .header { background-color: #2563eb; color: white; padding: 20px; text-align: center; }\n        .content { padding: 20px; }\n        .chemical-details { background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; }\n        .urgent { color: #dc2626; font-weight: bold; }\n        .footer { background-color: #f1f5f9; padding: 15px; margin-top: 20px; }\n    </style>\n</head>\n<body>\n    <div class=\"header\">\n        <h1>Ambica Pharma Chem</h1>\n        <h2>Purchase Order Request</h2>\n    </div>\n    \n    <div class=\"content\">\n        <p>Dear {{$json.reorderData.supplier.contact}},</p>\n        \n        <p>We need to place an <span class=\"urgent\">{{$json.reorderData.urgency === 'critical' ? 'URGENT' : 'STANDARD'}}</span> order for the following chemical:</p>\n        \n        <div class=\"chemical-details\">\n            <h3>Chemical Details:</h3>\n            <p><strong>Chemical Name:</strong> {{$json.reorderData.chemical.name}}</p>\n            <p><strong>Category:</strong> {{$json.reorderData.chemical.category}}</p>\n            <p><strong>Current Stock:</strong> {{$json.reorderData.chemical.currentStock}} {{$json.reorderData.chemical.unit}}</p>\n            <p><strong>Requested Quantity:</strong> {{$json.reorderData.recommendedQuantity}} {{$json.reorderData.chemical.unit}}</p>\n            <p><strong>Estimated Cost:</strong> ₹{{$json.reorderData.estimatedCost}}</p>\n            <p><strong>Required By:</strong> {{$json.reorderData.requiredBy}}</p>\n        </div>\n        \n        <p><strong>PO Number:</strong> {{$json.reorderData.poNumber}}</p>\n        \n        <p>Please confirm availability and provide delivery timeline.</p>\n        \n        <p>Best regards,<br>\n        Procurement Team<br>\n        Ambica Pharma Chem</p>\n    </div>\n</body>\n</html>"
+      },
+      "id": "reorder-email-supplier-001",
+      "name": "Reorder - Email Supplier",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "fromEmail": "system@ambicapharma.com",
+        "toEmail": "procurement@ambicapharma.com",
+        "subject": "Reorder Alert: {{$json.reorderData.chemical.name}}",
+        "emailFormat": "html",
+        "html": "<!DOCTYPE html>\n<html>\n<body style=\"font-family: Arial, sans-serif;\">\n    <h2>Reorder Alert - {{$json.reorderData.urgency === 'critical' ? '🚨 CRITICAL' : '⚠️ STANDARD'}}</h2>\n    \n    <p>A reorder has been automatically triggered for:</p>\n    \n    <div style=\"background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0;\">\n        <h3>{{$json.reorderData.chemical.name}}</h3>\n        <p><strong>Current Stock:</strong> {{$json.reorderData.chemical.currentStock}} {{$json.reorderData.chemical.unit}}</p>\n        <p><strong>Supplier:</strong> {{$json.reorderData.chemical.supplier}}</p>\n        <p><strong>PO Number:</strong> {{$json.reorderData.poNumber}}</p>\n        <p><strong>Estimated Cost:</strong> ₹{{$json.reorderData.estimatedCost}}</p>\n    </div>\n    \n    <p>Email sent to supplier: {{$json.reorderData.supplier.email}}</p>\n    \n    <p>Best regards,<br>Inventory Management System</p>\n</body>\n</html>"
+      },
+      "id": "reorder-notify-team-001",
+      "name": "Reorder - Notify Team",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "message": "🚨 *CRITICAL REORDER ALERT*\n\nChemical: {{$json.reorderData.chemical.name}}\nCurrent Stock: {{$json.reorderData.chemical.currentStock}} {{$json.reorderData.chemical.unit}}\nSupplier: {{$json.reorderData.chemical.supplier}}\nPO Number: {{$json.reorderData.poNumber}}\n\n⚡ Immediate action required!",
+        "chatId": "@ambica_inventory_alerts",
+        "parseMode": "Markdown"
+      },
+      "id": "reorder-telegram-critical-001",
+      "name": "Reorder - Telegram Critical",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [680, 100]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Log reorder activity and respond\nconst reorderData = $input.first().json.reorderData;\n\nconst logEntry = {\n  id: `log-${Date.now()}`,\n  timestamp: new Date().toISOString(),\n  user: 'System',\n  action: 'Automatic Reorder Triggered',\n  details: `Reorder triggered for ${reorderData.chemical.name}. PO: ${reorderData.poNumber}. Quantity: ${reorderData.recommendedQuantity} ${reorderData.chemical.unit}.`,\n  category: 'purchase_order',\n  severity: reorderData.urgency === 'critical' ? 'warning' : 'info'\n};\n\nreturn [{\n  json: {\n    logEntry: logEntry,\n    reorderData: reorderData,\n    status: 'success',\n    message: `Reorder workflow completed for ${reorderData.chemical.name}`\n  }\n}];"
+      },
+      "id": "reorder-log-activity-001",
+      "name": "Reorder - Log Activity",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"{{$json.message}}\",\n  \"poNumber\": \"{{$json.reorderData.poNumber}}\",\n  \"supplier\": \"{{$json.reorderData.chemical.supplier}}\",\n  \"quantity\": \"{{$json.reorderData.recommendedQuantity}} {{$json.reorderData.chemical.unit}}\",\n  \"timestamp\": \"{{$json.reorderData.createdAt}}\"\n}"
+      },
+      "id": "reorder-respond-001",
+      "name": "Reorder - Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "send-purchase-order",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "po-webhook-002",
+      "name": "Webhook - Send PO",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 800],
+      "webhookId": "send-purchase-order"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate PO document with professional formatting\nconst po = $input.first().json.purchaseOrder;\nconst timestamp = new Date().toISOString();\n\nconst htmlContent = `\n<!DOCTYPE html>\n<html>\n<head>\n    <style>\n        body { font-family: Arial, sans-serif; margin: 40px; }\n        .header { text-align: center; border-bottom: 3px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }\n        .company-info { background-color: #f8f9fa; padding: 20px; margin: 20px 0; }\n        .po-details { display: flex; justify-content: space-between; margin: 20px 0; }\n        .items-table { width: 100%; border-collapse: collapse; margin: 20px 0; }\n        .items-table th, .items-table td { border: 1px solid #ddd; padding: 12px; text-align: left; }\n        .items-table th { background-color: #2563eb; color: white; }\n        .total-section { text-align: right; margin: 20px 0; }\n        .footer { margin-top: 40px; border-top: 1px solid #ddd; padding-top: 20px; font-size: 12px; }\n    </style>\n</head>\n<body>\n    <div class=\"header\">\n        <h1>AMBICA PHARMA CHEM</h1>\n        <h2>PURCHASE ORDER</h2>\n        <p>Chemical Manufacturing & Distribution</p>\n    </div>\n    \n    <div class=\"company-info\">\n        <h3>Bill To:</h3>\n        <p><strong>Ambica Pharma Chem Pvt. Ltd.</strong><br>\n        123 Industrial Estate<br>\n        Mumbai, Maharashtra 400001<br>\n        Phone: +91-22-12345678<br>\n        Email: procurement@ambicapharma.com<br>\n        GSTIN: 27ABCDE1234F1Z5</p>\n    </div>\n    \n    <div class=\"po-details\">\n        <div>\n            <h3>Purchase Order Details:</h3>\n            <p><strong>PO Number:</strong> ${po.poNumber}</p>\n            <p><strong>Order Date:</strong> ${new Date(po.orderDate).toLocaleDateString('en-IN')}</p>\n            <p><strong>Expected Delivery:</strong> ${new Date(po.expectedDelivery).toLocaleDateString('en-IN')}</p>\n            <p><strong>Priority:</strong> ${po.priority.toUpperCase()}</p>\n        </div>\n        <div>\n            <h3>Supplier Information:</h3>\n            <p><strong>Supplier:</strong> ${po.supplier}</p>\n        </div>\n    </div>\n    \n    <table class=\"items-table\">\n        <thead>\n            <tr>\n                <th>S.No.</th>\n                <th>Chemical Name</th>\n                <th>Quantity</th>\n                <th>Unit Price (₹)</th>\n                <th>Total (₹)</th>\n            </tr>\n        </thead>\n        <tbody>\n            ${po.chemicals.map((item, index) => `\n            <tr>\n                <td>${index + 1}</td>\n                <td>${item.chemicalName}</td>\n                <td>${item.quantity}</td>\n                <td>${item.unitPrice.toLocaleString('en-IN')}</td>\n                <td>${item.total.toLocaleString('en-IN')}</td>\n            </tr>\n            `).join('')}\n        </tbody>\n    </table>\n    \n    <div class=\"total-section\">\n        <h3>Total Amount: ₹${po.totalAmount.toLocaleString('en-IN')}</h3>\n    </div>\n    \n    ${po.notes ? `<div><h3>Special Instructions:</h3><p>${po.notes}</p></div>` : ''}\n    \n    <div class=\"footer\">\n        <p><strong>Terms & Conditions:</strong></p>\n        <ul>\n            <li>Payment terms: Net 30 days</li>\n            <li>Delivery to be made at our warehouse address</li>\n            <li>Quality certificates required with delivery</li>\n        </ul>\n        \n        <p style=\"margin-top: 30px;\">\n            <strong>Authorized Signature:</strong><br>\n            _________________________<br>\n            Procurement Manager<br>\n            Date: ${new Date().toLocaleDateString('en-IN')}\n        </p>\n    </div>\n</body>\n</html>\n`;\n\nreturn [{\n  json: {\n    purchaseOrder: po,\n    htmlContent: htmlContent,\n    pdfFileName: `PO_${po.poNumber}_${new Date().toISOString().split('T')[0]}.pdf`,\n    timestamp: timestamp\n  }\n}];"
+      },
+      "id": "po-generate-doc-002",
+      "name": "PO - Generate Document",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 800]
+    },
+    {
+      "parameters": {
+        "fromEmail": "procurement@ambicapharma.com",
+        "toEmail": "supplier@email.com",
+        "subject": "Purchase Order {{$json.purchaseOrder.poNumber}} - {{$json.purchaseOrder.supplier}}",
+        "emailFormat": "html",
+        "html": "<!DOCTYPE html>\n<html>\n<body style=\"font-family: Arial, sans-serif; margin: 20px;\">\n    <div style=\"background-color: #2563eb; color: white; padding: 20px; text-align: center; margin-bottom: 20px;\">\n        <h1>Ambica Pharma Chem</h1>\n        <h2>Purchase Order</h2>\n    </div>\n    \n    <p>Dear {{$json.purchaseOrder.supplier}},</p>\n    \n    <p>Please find our Purchase Order <strong>{{$json.purchaseOrder.poNumber}}</strong> details below:</p>\n    \n    <div style=\"background-color: #f8f9fa; padding: 15px; margin: 20px 0; border-radius: 5px;\">\n        <h3>Order Summary:</h3>\n        <p><strong>Total Items:</strong> {{$json.purchaseOrder.chemicals.length}}</p>\n        <p><strong>Total Amount:</strong> ₹{{$json.purchaseOrder.totalAmount}}</p>\n        <p><strong>Expected Delivery:</strong> {{$json.purchaseOrder.expectedDelivery}}</p>\n        <p><strong>Priority:</strong> {{$json.purchaseOrder.priority}}</p>\n    </div>\n    \n    <p>Please confirm the order and expected delivery date within 24 hours.</p>\n    \n    <p>Best regards,<br>\n    <strong>Procurement Team</strong><br>\n    Ambica Pharma Chem Pvt. Ltd.</p>\n</body>\n</html>"
+      },
+      "id": "po-email-supplier-002",
+      "name": "PO - Email Supplier",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [680, 800]
+    },
+    {
+      "parameters": {
+        "fromEmail": "system@ambicapharma.com",
+        "toEmail": "procurement@ambicapharma.com,manager@ambicapharma.com",
+        "subject": "PO Sent: {{$json.purchaseOrder.poNumber}} to {{$json.purchaseOrder.supplier}}",
+        "emailFormat": "html",
+        "html": "<!DOCTYPE html>\n<html>\n<body style=\"font-family: Arial, sans-serif;\">\n    <h2>Purchase Order Sent Successfully</h2>\n    \n    <div style=\"background-color: #f0f9ff; padding: 15px; border-left: 4px solid #2563eb; margin: 20px 0;\">\n        <h3>PO Details:</h3>\n        <p><strong>PO Number:</strong> {{$json.purchaseOrder.poNumber}}</p>\n        <p><strong>Supplier:</strong> {{$json.purchaseOrder.supplier}}</p>\n        <p><strong>Total Amount:</strong> ₹{{$json.purchaseOrder.totalAmount}}</p>\n        <p><strong>Expected Delivery:</strong> {{$json.purchaseOrder.expectedDelivery}}</p>\n    </div>\n    \n    <p>This PO is now awaiting supplier confirmation.</p>\n    \n    <p>Best regards,<br>Inventory Management System</p>\n</body>\n</html>"
+      },
+      "id": "po-notify-internal-002",
+      "name": "PO - Notify Internal",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [900, 800]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Log PO activity and prepare response\nconst po = $input.first().json.purchaseOrder;\nconst timestamp = new Date().toISOString();\n\nconst logEntry = {\n  id: `log-${Date.now()}`,\n  timestamp: timestamp,\n  user: 'System',\n  action: 'Purchase Order Sent',\n  details: `PO ${po.poNumber} sent to ${po.supplier}. Total: ₹${po.totalAmount}. Items: ${po.chemicals.length}.`,\n  category: 'purchase_order',\n  severity: 'success'\n};\n\nreturn [{\n  json: {\n    logEntry: logEntry,\n    purchaseOrder: po,\n    status: 'success',\n    message: `Purchase Order ${po.poNumber} processed successfully`\n  }\n}];"
+      },
+      "id": "po-log-respond-002",
+      "name": "PO - Log & Respond",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1120, 800]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"{{$json.message}}\",\n  \"poNumber\": \"{{$json.purchaseOrder.poNumber}}\",\n  \"supplier\": \"{{$json.purchaseOrder.supplier}}\",\n  \"totalAmount\": {{$json.purchaseOrder.totalAmount}},\n  \"emailSent\": true,\n  \"timestamp\": \"{{$json.logEntry.timestamp}}\"\n}"
+      },
+      "id": "po-respond-002",
+      "name": "PO - Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 800]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "notify-manager",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "notify-webhook-003",
+      "name": "Webhook - Notifications",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 1300],
+      "webhookId": "notify-manager"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process notification data and determine channels\nconst alert = $input.first().json.alert;\nconst recipients = $input.first().json.recipients || {};\nconst channels = $input.first().json.channels || ['email'];\n\n// Determine channels based on severity\nlet notificationChannels = [];\nswitch(alert.severity) {\n  case 'critical':\n    notificationChannels = ['email', 'telegram'];\n    break;\n  case 'high':\n    notificationChannels = ['email', 'telegram'];\n    break;\n  case 'medium':\n    notificationChannels = ['email'];\n    break;\n  default:\n    notificationChannels = ['email'];\n}\n\n// Create formatted messages\nconst emailSubject = `${alert.severity.toUpperCase()} Alert: ${alert.title}`;\nconst detailedMessage = `\n**ALERT NOTIFICATION**\n\n**Severity:** ${alert.severity.toUpperCase()}\n**Type:** ${alert.type.replace('_', ' ').toUpperCase()}\n**Title:** ${alert.title}\n**Message:** ${alert.message}\n**Time:** ${new Date(alert.timestamp).toLocaleString('en-IN')}\n\n${alert.chemicalId ? `**Chemical ID:** ${alert.chemicalId}\\n` : ''}\n**Requires Action:** ${alert.actionRequired || false ? 'YES' : 'NO'}\n\n---\nAmbica Pharma Chem Inventory System\n`;\n\nreturn [{\n  json: {\n    alert: alert,\n    recipients: recipients,\n    channels: notificationChannels,\n    messages: {\n      email: {\n        subject: emailSubject,\n        body: detailedMessage\n      },\n      telegram: detailedMessage\n    },\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "notify-process-data-003",
+      "name": "Notify - Process Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 1300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "alerts@ambicapharma.com",
+        "toEmail": "manager@ambicapharma.com",
+        "subject": "={{$json.messages.email.subject}}",
+        "emailFormat": "html",
+        "html": "<!DOCTYPE html>\n<html>\n<head>\n    <style>\n        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }\n        .container { background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }\n        .header { text-align: center; padding: 20px; margin-bottom: 30px; border-radius: 8px; }\n        .critical { background-color: #fef2f2; border: 2px solid #ef4444; color: #dc2626; }\n        .high { background-color: #fff7ed; border: 2px solid #f97316; color: #ea580c; }\n        .medium { background-color: #fffbeb; border: 2px solid #f59e0b; color: #d97706; }\n        .alert-details { background-color: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0; }\n        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px; }\n    </style>\n</head>\n<body>\n    <div class=\"container\">\n        <div class=\"header {{$json.alert.severity}}\">\n            <h1>🚨 INVENTORY ALERT</h1>\n            <h2>{{$json.alert.title}}</h2>\n            <p><strong>Severity: {{$json.alert.severity.toUpperCase()}}</strong></p>\n        </div>\n        \n        <div class=\"alert-details\">\n            <h3>Alert Details:</h3>\n            <p><strong>Type:</strong> {{$json.alert.type.replace('_', ' ').toUpperCase()}}</p>\n            <p><strong>Message:</strong> {{$json.alert.message}}</p>\n            <p><strong>Timestamp:</strong> {{$json.alert.timestamp}}</p>\n        </div>\n        \n        <div class=\"footer\">\n            <p><strong>Ambica Pharma Chem - Inventory Management System</strong></p>\n            <p>This is an automated alert. For support, contact: support@ambicapharma.com</p>\n        </div>\n    </div>\n</body>\n</html>"
+      },
+      "id": "notify-send-email-003",
+      "name": "Notify - Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [680, 1200]
+    },
+    {
+      "parameters": {
+        "message": "={{$json.messages.telegram}}",
+        "chatId": "@ambica_inventory_alerts",
+        "parseMode": "Markdown"
+      },
+      "id": "notify-send-telegram-003",
+      "name": "Notify - Send Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [680, 1400]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Collect notification results\nconst originalData = $input.first().json;\n\nconst logEntry = {\n  id: `log-${Date.now()}`,\n  timestamp: new Date().toISOString(),\n  user: 'System',\n  action: 'Multi-Channel Alert Sent',\n  details: `Alert \"${originalData.alert.title}\" sent via ${originalData.channels.join(', ')}. Severity: ${originalData.alert.severity}.`,\n  category: 'alert',\n  severity: originalData.alert.severity === 'critical' ? 'warning' : 'info'\n};\n\nreturn [{\n  json: {\n    alert: originalData.alert,\n    channels_used: originalData.channels,\n    logEntry: logEntry,\n    status: 'success',\n    message: `Alert sent successfully via ${originalData.channels.join(', ')}`\n  }\n}];"
+      },
+      "id": "notify-collect-results-003",
+      "name": "Notify - Collect Results",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [900, 1300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"{{$json.message}}\",\n  \"alert_id\": \"{{$json.alert.id}}\",\n  \"severity\": \"{{$json.alert.severity}}\",\n  \"channels_used\": {{JSON.stringify($json.channels_used)}},\n  \"timestamp\": \"{{$json.logEntry.timestamp}}\"\n}"
+      },
+      "id": "notify-respond-003",
+      "name": "Notify - Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 1300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-report",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "report-webhook-004",
+      "name": "Webhook - Reports",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 1800],
+      "webhookId": "generate-report"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process report generation request\nconst reportType = $input.first().json.reportType || 'inventory';\nconst timestamp = new Date().toISOString();\nconst dateStr = timestamp.split('T')[0];\n\n// Mock report data\nconst reportData = {\n  inventory: {\n    title: 'Inventory Status Report',\n    filename: `inventory-report-${dateStr}.pdf`,\n    data: {\n      totalChemicals: 156,\n      totalValue: 4575025.50,\n      lowStockItems: 12,\n      expiringSoon: 8,\n      categories: [\n        { name: 'Inorganic Salts', count: 45, value: 1250000 },\n        { name: 'Organic Solvents', count: 32, value: 980000 },\n        { name: 'Acids', count: 28, value: 750000 },\n        { name: 'Others', count: 51, value: 1595025.50 }\n      ],\n      alerts: [\n        'Acetone - Out of Stock (Critical)',\n        'Sulfuric Acid - Low Stock (25L remaining)',\n        'Hydrochloric Acid - Expiring Soon (45 days)'\n      ]\n    }\n  },\n  orders: {\n    title: 'Purchase Orders Report',\n    filename: `orders-report-${dateStr}.pdf`,\n    data: {\n      totalOrders: 23,\n      totalValue: 2850000,\n      pendingOrders: 5,\n      deliveredOrders: 18\n    }\n  }\n};\n\nconst selectedReport = reportData[reportType] || reportData.inventory;\n\nreturn [{\n  json: {\n    reportType: reportType,\n    reportTitle: selectedReport.title,\n    fileName: selectedReport.filename,\n    reportData: selectedReport.data,\n    generatedAt: timestamp,\n    generatedBy: 'System'\n  }\n}];"
+      },
+      "id": "report-process-request-004",
+      "name": "Report - Process Request",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [460, 1800]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate HTML report content\nconst reportData = $input.first().json.reportData;\nconst reportTitle = $input.first().json.reportTitle;\nconst generatedAt = $input.first().json.generatedAt;\n\nconst htmlContent = `\n<!DOCTYPE html>\n<html>\n<head>\n    <style>\n        body { font-family: Arial, sans-serif; margin: 40px; color: #333; }\n        .header { text-align: center; border-bottom: 3px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }\n        .company-logo { font-size: 24px; font-weight: bold; color: #2563eb; }\n        .summary-cards { display: flex; justify-content: space-between; margin: 30px 0; }\n        .card { background: #f8fafc; padding: 20px; border-radius: 8px; text-align: center; width: 22%; }\n        .section { margin: 30px 0; }\n        table { width: 100%; border-collapse: collapse; margin: 20px 0; }\n        th, td { border: 1px solid #d1d5db; padding: 12px; text-align: left; }\n        th { background-color: #2563eb; color: white; }\n        .footer { margin-top: 50px; text-align: center; color: #6b7280; font-size: 12px; }\n    </style>\n</head>\n<body>\n    <div class=\"header\">\n        <div class=\"company-logo\">AMBICA PHARMA CHEM</div>\n        <h1>${reportTitle}</h1>\n        <p>Generated on: ${new Date(generatedAt).toLocaleDateString('en-IN')}</p>\n    </div>\n    \n    <div class=\"summary-cards\">\n        <div class=\"card\">\n            <h3>Total Chemicals</h3>\n            <p style=\"font-size: 24px; font-weight: bold;\">${reportData.totalChemicals}</p>\n        </div>\n        <div class=\"card\">\n            <h3>Total Value</h3>\n            <p style=\"font-size: 24px; font-weight: bold;\">₹${reportData.totalValue.toLocaleString('en-IN')}</p>\n        </div>\n        <div class=\"card\">\n            <h3>Low Stock Items</h3>\n            <p style=\"font-size: 24px; font-weight: bold; color: #f59e0b;\">${reportData.lowStockItems}</p>\n        </div>\n        <div class=\"card\">\n            <h3>Expiring Soon</h3>\n            <p style=\"font-size: 24px; font-weight: bold; color: #dc2626;\">${reportData.expiringSoon}</p>\n        </div>\n    </div>\n    \n    <div class=\"section\">\n        <h2>Category Breakdown</h2>\n        <table>\n            <thead>\n                <tr><th>Category</th><th>Count</th><th>Value (₹)</th><th>Percentage</th></tr>\n            </thead>\n            <tbody>\n                ${reportData.categories.map(cat => `\n                <tr>\n                    <td>${cat.name}</td>\n                    <td>${cat.count}</td>\n                    <td>₹${cat.value.toLocaleString('en-IN')}</td>\n                    <td>${((cat.value / reportData.totalValue) * 100).toFixed(1)}%</td>\n                </tr>\n                `).join('')}\n            </tbody>\n        </table>\n    </div>\n    \n    <div class=\"section\">\n        <h2>Critical Alerts</h2>\n        <ul>\n            ${reportData.alerts.map(alert => `<li>${alert}</li>`).join('')}\n        </ul>\n    </div>\n    \n    <div class=\"footer\">\n        <p><strong>Ambica Pharma Chem - Inventory Management System</strong></p>\n        <p>This report contains confidential information.</p>\n    </div>\n</body>\n</html>\n`;\n\nreturn [{\n  json: {\n    ...($input.first().json),\n    htmlContent: htmlContent\n  }\n}];"
+      },
+      "id": "report-generate-html-004",
+      "name": "Report - Generate HTML",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [680, 1800]
+    },
+    {
+      "parameters": {
+        "fromEmail": "reports@ambicapharma.com",
+        "toEmail": "management@ambicapharma.com",
+        "subject": "{{$json.reportTitle}} - {{$json.generatedAt}}",
+        "emailFormat": "html",
+        "html": "<!DOCTYPE html>\n<html>\n<body style=\"font-family: Arial, sans-serif; margin: 20px;\">\n    <div style=\"background-color: #2563eb; color: white; padding: 20px; text-align: center; margin-bottom: 20px;\">\n        <h1>Ambica Pharma Chem</h1>\n        <h2>{{$json.reportTitle}}</h2>\n    </div>\n    \n    <p>Dear Team,</p>\n    \n    <p>Please find the <strong>{{$json.reportTitle}}</strong> generated on {{$json.generatedAt}}.</p>\n    \n    <div style=\"background-color: #f8f9fa; padding: 15px; margin: 20px 0; border-radius: 5px;\">\n        <h3>Report Summary:</h3>\n        <p><strong>Report Type:</strong> {{$json.reportType}}</p>\n        <p><strong>Generated At:</strong> {{$json.generatedAt}}</p>\n    </div>\n    \n    <p>This report contains important insights about our inventory management.</p>\n    \n    <p>Best regards,<br>\n    <strong>Inventory Management System</strong></p>\n</body>\n</html>"
+      },
+      "id": "report-email-004",
+      "name": "Report - Email Report",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [900, 1800]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Log report generation\nconst reportData = $input.first().json;\nconst timestamp = new Date().toISOString();\n\nconst logEntry = {\n  id: `log-${Date.now()}`,\n  timestamp: timestamp,\n  user: 'System',\n  action: 'Report Generated',\n  details: `${reportData.reportTitle} generated and emailed. Type: ${reportData.reportType}.`,\n  category: 'system',\n  severity: 'info'\n};\n\nreturn [{\n  json: {\n    ...reportData,\n    logEntry: logEntry,\n    status: 'success',\n    message: `${reportData.reportTitle} generated successfully`\n  }\n}];"
+      },
+      "id": "report-log-004",
+      "name": "Report - Log Generation",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [1120, 1800]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"{{$json.message}}\",\n  \"reportTitle\": \"{{$json.reportTitle}}\",\n  \"reportType\": \"{{$json.reportType}}\",\n  \"fileName\": \"{{$json.fileName}}\",\n  \"generatedAt\": \"{{$json.generatedAt}}\",\n  \"emailSent\": true,\n  \"timestamp\": \"{{$json.logEntry.timestamp}}\"\n}"
+      },
+      "id": "report-respond-004",
+      "name": "Report - Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1340, 1800]
+    }
+  ],
+  "connections": {
+    "Webhook - Reorder Trigger": {
+      "main": [
+        [
+          {
+            "node": "Reorder - Check Urgency",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reorder - Check Urgency": {
+      "main": [
+        [
+          {
+            "node": "Reorder - Process Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reorder - Process Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reorder - Process Data": {
+      "main": [
+        [
+          {
+            "node": "Reorder - Email Supplier",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Reorder - Notify Team",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Reorder - Telegram Critical",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reorder - Email Supplier": {
+      "main": [
+        [
+          {
+            "node": "Reorder - Log Activity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reorder - Notify Team": {
+      "main": [
+        [
+          {
+            "node": "Reorder - Log Activity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reorder - Telegram Critical": {
+      "main": [
+        [
+          {
+            "node": "Reorder - Log Activity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reorder - Log Activity": {
+      "main": [
+        [
+          {
+            "node": "Reorder - Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Send PO": {
+      "main": [
+        [
+          {
+            "node": "PO - Generate Document",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PO - Generate Document": {
+      "main": [
+        [
+          {
+            "node": "PO - Email Supplier",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "PO - Notify Internal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PO - Email Supplier": {
+      "main": [
+        [
+          {
+            "node": "PO - Log & Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PO - Notify Internal": {
+      "main": [
+        [
+          {
+            "node": "PO - Log & Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PO - Log & Respond": {
+      "main": [
+        [
+          {
+            "node": "PO - Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Notifications": {
+      "main": [
+        [
+          {
+            "node": "Notify - Process Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify - Process Data": {
+      "main": [
+        [
+          {
+            "node": "Notify - Send Email",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notify - Send Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify - Send Email": {
+      "main": [
+        [
+          {
+            "node": "Notify - Collect Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify - Send Telegram": {
+      "main": [
+        [
+          {
+            "node": "Notify - Collect Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify - Collect Results": {
+      "main": [
+        [
+          {
+            "node": "Notify - Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Reports": {
+      "main": [
+        [
+          {
+            "node": "Report - Process Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Report - Process Request": {
+      "main": [
+        [
+          {
+            "node": "Report - Generate HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Report - Generate HTML": {
+      "main": [
+        [
+          {
+            "node": "Report - Email Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Report - Email Report": {
+      "main": [
+        [
+          {
+            "node": "Report - Log Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Report - Log Generation": {
+      "main": [
+        [
+          {
+            "node": "Report - Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "createdAt": "2024-01-15T12:00:00.000Z",
+  "updatedAt": "2024-01-15T12:00:00.000Z",
+  "settings": {},
+  "staticData": null,
+  "tags": ["inventory", "automation", "complete", "ambica-pharma"],
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "ambica-pharma-complete-workflow"
+}

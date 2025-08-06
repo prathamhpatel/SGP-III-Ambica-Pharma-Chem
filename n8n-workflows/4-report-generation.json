@@ -1,0 +1,203 @@
+{
+  "name": "Ambica Pharma - Report Generation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-report",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "r1a2b3c4-d5e6-f789-0123-456789abcdef",
+      "name": "Webhook - Report Request",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ],
+      "webhookId": "generate-report"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Process report generation request\nconst reportType = $input.first().json.reportType || 'inventory';\nconst timestamp = new Date().toISOString();\nconst dateStr = timestamp.split('T')[0];\n\n// Mock data for different report types\nconst reportData = {\n  inventory: {\n    title: 'Inventory Status Report',\n    filename: `inventory-report-${dateStr}.pdf`,\n    data: {\n      totalChemicals: 156,\n      totalValue: 4575025.50,\n      lowStockItems: 12,\n      expiringSoon: 8,\n      categories: [\n        { name: 'Inorganic Salts', count: 45, value: 1250000 },\n        { name: 'Organic Solvents', count: 32, value: 980000 },\n        { name: 'Acids', count: 28, value: 750000 },\n        { name: 'Bases', count: 22, value: 650000 },\n        { name: 'Polymers', count: 18, value: 580000 },\n        { name: 'Others', count: 11, value: 365025.50 }\n      ],\n      alerts: [\n        'Acetone - Out of Stock (Critical)',\n        'Sulfuric Acid - Low Stock (25L remaining)',\n        'Hydrochloric Acid - Expiring Soon (45 days)'\n      ]\n    }\n  },\n  orders: {\n    title: 'Purchase Orders Report',\n    filename: `orders-report-${dateStr}.pdf`,\n    data: {\n      totalOrders: 23,\n      totalValue: 2850000,\n      pendingOrders: 5,\n      deliveredOrders: 18,\n      ordersByMonth: [\n        { month: 'January', orders: 8, value: 950000 },\n        { month: 'February', orders: 6, value: 720000 },\n        { month: 'March', orders: 9, value: 1180000 }\n      ],\n      topSuppliers: [\n        { name: 'ChemCorp Ltd', orders: 8, value: 980000 },\n        { name: 'Pure Chemicals Co', orders: 6, value: 850000 },\n        { name: 'Industrial Chemicals Inc', orders: 5, value: 650000 }\n      ]\n    }\n  },\n  suppliers: {\n    title: 'Supplier Performance Report',\n    filename: `suppliers-report-${dateStr}.pdf`,\n    data: {\n      totalSuppliers: 15,\n      activeSuppliers: 12,\n      avgRating: 4.2,\n      topPerformers: [\n        { name: 'Pure Chemicals Co', rating: 4.8, orders: 12, onTime: 95 },\n        { name: 'ChemCorp Ltd', rating: 4.5, orders: 15, onTime: 88 },\n        { name: 'Industrial Chemicals Inc', rating: 4.2, orders: 10, onTime: 85 }\n      ],\n      deliveryMetrics: {\n        onTimeDelivery: 87,\n        avgDeliveryTime: 5.2,\n        qualityIssues: 2\n      }\n    }\n  },\n  alerts: {\n    title: 'Alert Summary Report',\n    filename: `alerts-report-${dateStr}.pdf`,\n    data: {\n      totalAlerts: 45,\n      criticalAlerts: 8,\n      resolvedAlerts: 37,\n      avgResolutionTime: 2.5,\n      alertsByType: [\n        { type: 'Low Stock', count: 18, resolved: 15 },\n        { type: 'Out of Stock', count: 12, resolved: 10 },\n        { type: 'Expiry Warning', count: 10, resolved: 8 },\n        { type: 'System Alert', count: 5, resolved: 4 }\n      ]\n    }\n  }\n};\n\nconst selectedReport = reportData[reportType] || reportData.inventory;\n\nreturn [{\n  json: {\n    reportType: reportType,\n    reportTitle: selectedReport.title,\n    fileName: selectedReport.filename,\n    reportData: selectedReport.data,\n    generatedAt: timestamp,\n    generatedBy: 'System'\n  }\n}];"
+      },
+      "id": "r2b3c4d5-e6f7-8901-2345-6789abcdef01",
+      "name": "Process Report Request",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Generate HTML content for the report\nconst reportData = $input.first().json.reportData;\nconst reportTitle = $input.first().json.reportTitle;\nconst reportType = $input.first().json.reportType;\nconst generatedAt = $input.first().json.generatedAt;\n\nlet htmlContent = '';\n\nif (reportType === 'inventory') {\n  htmlContent = `\n<!DOCTYPE html>\n<html>\n<head>\n    <style>\n        body { font-family: Arial, sans-serif; margin: 40px; color: #333; }\n        .header { text-align: center; border-bottom: 3px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }\n        .company-logo { font-size: 24px; font-weight: bold; color: #2563eb; }\n        .report-title { color: #1f2937; margin: 10px 0; }\n        .summary-cards { display: flex; justify-content: space-between; margin: 30px 0; }\n        .card { background: #f8fafc; padding: 20px; border-radius: 8px; text-align: center; width: 22%; }\n        .card h3 { margin: 0; color: #2563eb; }\n        .card p { font-size: 24px; font-weight: bold; margin: 10px 0; }\n        .section { margin: 30px 0; }\n        .section h2 { color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; }\n        table { width: 100%; border-collapse: collapse; margin: 20px 0; }\n        th, td { border: 1px solid #d1d5db; padding: 12px; text-align: left; }\n        th { background-color: #2563eb; color: white; }\n        .alert-critical { color: #dc2626; font-weight: bold; }\n        .alert-warning { color: #f59e0b; font-weight: bold; }\n        .footer { margin-top: 50px; text-align: center; color: #6b7280; font-size: 12px; }\n    </style>\n</head>\n<body>\n    <div class=\"header\">\n        <div class=\"company-logo\">AMBICA PHARMA CHEM</div>\n        <h1 class=\"report-title\">${reportTitle}</h1>\n        <p>Generated on: ${new Date(generatedAt).toLocaleDateString('en-IN', { \n          year: 'numeric', month: 'long', day: 'numeric', \n          hour: '2-digit', minute: '2-digit' \n        })}</p>\n    </div>\n    \n    <div class=\"summary-cards\">\n        <div class=\"card\">\n            <h3>Total Chemicals</h3>\n            <p>${reportData.totalChemicals}</p>\n        </div>\n        <div class=\"card\">\n            <h3>Total Value</h3>\n            <p>₹${reportData.totalValue.toLocaleString('en-IN')}</p>\n        </div>\n        <div class=\"card\">\n            <h3>Low Stock Items</h3>\n            <p style=\"color: #f59e0b;\">${reportData.lowStockItems}</p>\n        </div>\n        <div class=\"card\">\n            <h3>Expiring Soon</h3>\n            <p style=\"color: #dc2626;\">${reportData.expiringSoon}</p>\n        </div>\n    </div>\n    \n    <div class=\"section\">\n        <h2>Category Breakdown</h2>\n        <table>\n            <thead>\n                <tr>\n                    <th>Category</th>\n                    <th>Count</th>\n                    <th>Value (₹)</th>\n                    <th>Percentage</th>\n                </tr>\n            </thead>\n            <tbody>\n                ${reportData.categories.map(cat => `\n                <tr>\n                    <td>${cat.name}</td>\n                    <td>${cat.count}</td>\n                    <td>₹${cat.value.toLocaleString('en-IN')}</td>\n                    <td>${((cat.value / reportData.totalValue) * 100).toFixed(1)}%</td>\n                </tr>\n                `).join('')}\n            </tbody>\n        </table>\n    </div>\n    \n    <div class=\"section\">\n        <h2>Critical Alerts</h2>\n        <ul>\n            ${reportData.alerts.map(alert => `\n            <li class=\"${alert.includes('Critical') ? 'alert-critical' : 'alert-warning'}\">${alert}</li>\n            `).join('')}\n        </ul>\n    </div>\n    \n    <div class=\"footer\">\n        <p><strong>Ambica Pharma Chem - Inventory Management System</strong></p>\n        <p>This report is generated automatically and contains confidential information.</p>\n        <p>For queries, contact: reports@ambicapharma.com | +91-22-12345678</p>\n    </div>\n</body>\n</html>\n  `;\n} else if (reportType === 'orders') {\n  htmlContent = `\n<!DOCTYPE html>\n<html>\n<head>\n    <style>\n        body { font-family: Arial, sans-serif; margin: 40px; color: #333; }\n        .header { text-align: center; border-bottom: 3px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }\n        .company-logo { font-size: 24px; font-weight: bold; color: #2563eb; }\n        .summary-section { background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0; }\n        table { width: 100%; border-collapse: collapse; margin: 20px 0; }\n        th, td { border: 1px solid #d1d5db; padding: 12px; text-align: left; }\n        th { background-color: #2563eb; color: white; }\n        .section h2 { color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 10px; }\n    </style>\n</head>\n<body>\n    <div class=\"header\">\n        <div class=\"company-logo\">AMBICA PHARMA CHEM</div>\n        <h1>${reportTitle}</h1>\n        <p>Generated on: ${new Date(generatedAt).toLocaleDateString('en-IN')}</p>\n    </div>\n    \n    <div class=\"summary-section\">\n        <h2>Order Summary</h2>\n        <p><strong>Total Orders:</strong> ${reportData.totalOrders}</p>\n        <p><strong>Total Value:</strong> ₹${reportData.totalValue.toLocaleString('en-IN')}</p>\n        <p><strong>Pending Orders:</strong> ${reportData.pendingOrders}</p>\n        <p><strong>Delivered Orders:</strong> ${reportData.deliveredOrders}</p>\n    </div>\n    \n    <div class=\"section\">\n        <h2>Monthly Order Trends</h2>\n        <table>\n            <thead>\n                <tr><th>Month</th><th>Orders</th><th>Value (₹)</th></tr>\n            </thead>\n            <tbody>\n                ${reportData.ordersByMonth.map(month => `\n                <tr>\n                    <td>${month.month}</td>\n                    <td>${month.orders}</td>\n                    <td>₹${month.value.toLocaleString('en-IN')}</td>\n                </tr>\n                `).join('')}\n            </tbody>\n        </table>\n    </div>\n</body>\n</html>\n  `;\n}\n\nreturn [{\n  json: {\n    ...($input.first().json),\n    htmlContent: htmlContent\n  }\n}];"
+      },
+      "id": "r3c4d5e6-f7g8-9012-3456-789abcdef012",
+      "name": "Generate HTML Report",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.html-to-pdf.net/convert",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_PDF_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\n  \"html\": \"{{$json.htmlContent}}\",\n  \"options\": {\n    \"format\": \"A4\",\n    \"margin\": {\n      \"top\": \"0.5in\",\n      \"right\": \"0.5in\",\n      \"bottom\": \"0.5in\",\n      \"left\": \"0.5in\"\n    },\n    \"printBackground\": true\n  }\n}",
+        "options": {}
+      },
+      "id": "r4d5e6f7-g8h9-0123-4567-89abcdef0123",
+      "name": "Convert to PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "reports@ambicapharma.com",
+        "toEmail": "management@ambicapharma.com,procurement@ambicapharma.com",
+        "subject": "{{$json.reportTitle}} - {{$json.generatedAt}}",
+        "emailFormat": "html",
+        "html": "<!DOCTYPE html>\n<html>\n<body style=\"font-family: Arial, sans-serif; margin: 20px;\">\n    <div style=\"background-color: #2563eb; color: white; padding: 20px; text-align: center; margin-bottom: 20px;\">\n        <h1>Ambica Pharma Chem</h1>\n        <h2>{{$json.reportTitle}}</h2>\n    </div>\n    \n    <p>Dear Team,</p>\n    \n    <p>Please find attached the <strong>{{$json.reportTitle}}</strong> generated on {{$json.generatedAt}}.</p>\n    \n    <div style=\"background-color: #f8f9fa; padding: 15px; margin: 20px 0; border-radius: 5px;\">\n        <h3>Report Summary:</h3>\n        <p><strong>Report Type:</strong> {{$json.reportType}}</p>\n        <p><strong>Generated At:</strong> {{$json.generatedAt}}</p>\n        <p><strong>Generated By:</strong> {{$json.generatedBy}}</p>\n    </div>\n    \n    <p>This report contains important insights about our inventory management:</p>\n    <ul>\n        <li>Current stock levels and valuations</li>\n        <li>Critical alerts requiring attention</li>\n        <li>Performance metrics and trends</li>\n        <li>Recommendations for optimization</li>\n    </ul>\n    \n    <p>Please review the attached PDF and take necessary actions based on the findings.</p>\n    \n    <p>For any questions or clarifications, please contact the inventory management team.</p>\n    \n    <p>Best regards,<br>\n    <strong>Inventory Management System</strong><br>\n    Ambica Pharma Chem Pvt. Ltd.</p>\n    \n    <div style=\"margin-top: 30px; padding: 15px; background-color: #e5f3ff; border-radius: 5px;\">\n        <p style=\"margin: 0; font-size: 12px; color: #666;\">\n            <strong>Note:</strong> This is an automated report generated by our Inventory Management System.\n            The data is current as of the generation timestamp mentioned above.\n        </p>\n    </div>\n</body>\n</html>",
+        "attachments": "data:application/pdf;base64,={{$json.pdfData}}",
+        "options": {
+          "attachmentsPrefix": "{{$json.fileName}}"
+        }
+      },
+      "id": "r5e6f7g8-h9i0-1234-5678-9abcdef01234",
+      "name": "Email Report",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Log report generation activity\nconst reportData = $input.first().json;\nconst timestamp = new Date().toISOString();\n\n// Create activity log entry\nconst logEntry = {\n  id: `log-${Date.now()}`,\n  timestamp: timestamp,\n  user: 'System',\n  action: 'Report Generated',\n  details: `${reportData.reportTitle} generated and emailed to management team. Report type: ${reportData.reportType}. File: ${reportData.fileName}.`,\n  category: 'system',\n  severity: 'info',\n  report_type: reportData.reportType\n};\n\nreturn [{\n  json: {\n    ...reportData,\n    logEntry: logEntry,\n    status: 'success',\n    message: `${reportData.reportTitle} generated and sent successfully`,\n    downloadUrl: `/reports/${reportData.fileName}` // For future file storage integration\n  }\n}];"
+      },
+      "id": "r6f7g8h9-i0j1-2345-6789-abcdef012345",
+      "name": "Log Report Generation",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"{{$json.message}}\",\n  \"reportTitle\": \"{{$json.reportTitle}}\",\n  \"reportType\": \"{{$json.reportType}}\",\n  \"fileName\": \"{{$json.fileName}}\",\n  \"generatedAt\": \"{{$json.generatedAt}}\",\n  \"downloadUrl\": \"{{$json.downloadUrl}}\",\n  \"emailSent\": true,\n  \"timestamp\": \"{{$json.logEntry.timestamp}}\"\n}"
+      },
+      "id": "r7g8h9i0-j1k2-3456-7890-bcdef0123456",
+      "name": "Respond to Dashboard",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1560,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook - Report Request": {
+      "main": [
+        [
+          {
+            "node": "Process Report Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Report Request": {
+      "main": [
+        [
+          {
+            "node": "Generate HTML Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate HTML Report": {
+      "main": [
+        [
+          {
+            "node": "Convert to PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to PDF": {
+      "main": [
+        [
+          {
+            "node": "Email Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Report": {
+      "main": [
+        [
+          {
+            "node": "Log Report Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Report Generation": {
+      "main": [
+        [
+          {
+            "node": "Respond to Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "createdAt": "2024-01-15T11:15:00.000Z",
+  "updatedAt": "2024-01-15T11:15:00.000Z",
+  "settings": {},
+  "staticData": null,
+  "tags": ["inventory", "reports", "automation", "pdf", "ambica-pharma"],
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "report-generation-workflow"
+}
