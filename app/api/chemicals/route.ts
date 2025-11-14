@@ -43,9 +43,15 @@ export async function GET(request: NextRequest) {
       Chemical.countDocuments(query)
     ]);
     
+    // Map _id to id for frontend compatibility
+    const chemicalsWithId = chemicals.map((chemical: any) => ({
+      ...chemical,
+      id: chemical._id.toString()
+    }));
+    
     return NextResponse.json({
       success: true,
-      data: chemicals,
+      data: chemicalsWithId,
       pagination: {
         page,
         limit,
@@ -73,9 +79,16 @@ export async function POST(request: NextRequest) {
     const chemical = new Chemical(body);
     await chemical.save();
     
+    // Convert to plain object and map _id to id
+    const chemicalObj = chemical.toObject();
+    const chemicalWithId = {
+      ...chemicalObj,
+      id: chemicalObj._id.toString()
+    };
+    
     return NextResponse.json({
       success: true,
-      data: chemical,
+      data: chemicalWithId,
       message: 'Chemical created successfully'
     }, { status: 201 });
     

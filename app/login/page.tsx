@@ -25,22 +25,35 @@ export default function LoginPage() {
       return;
     }
 
-    // Simulate API call
-    setTimeout(() => {
-      // Mock authentication - in real app, this would be actual authentication
-      if (email === 'admin@ambicapharma.com' && password === 'admin123') {
+    try {
+      // Call login API
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Store user data and token in localStorage
         localStorage.setItem('isAuthenticated', 'true');
-        localStorage.setItem('user', JSON.stringify({
-          name: 'John Doe',
-          email: 'admin@ambicapharma.com',
-          role: 'Admin'
-        }));
+        localStorage.setItem('authToken', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        
+        // Redirect to dashboard
         router.push('/');
       } else {
-        setError('Invalid email or password');
+        setError(data.error || 'Invalid email or password');
       }
+    } catch (error) {
+      console.error('Login error:', error);
+      setError('Login failed. Please try again.');
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -127,7 +140,7 @@ export default function LoginPage() {
                   Remember me
                 </label>
               </div>
-              <a href="#" className="text-sm text-primary-600 hover:text-primary-500">
+              <a href="/forgot-password" className="text-sm text-primary-600 hover:text-primary-500">
                 Forgot password?
               </a>
             </div>
@@ -143,11 +156,12 @@ export default function LoginPage() {
             </Button>
           </form>
 
-          {/* Demo Credentials */}
+          {/* Login Credentials Info */}
           <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-sm font-medium text-blue-900 mb-2">Demo Credentials:</p>
-            <p className="text-sm text-blue-700">Email: admin@ambicapharma.com</p>
-            <p className="text-sm text-blue-700">Password: admin123</p>
+            <p className="text-sm font-medium text-blue-900 mb-2">🔐 Login Credentials:</p>
+            <p className="text-sm text-blue-700">Email: info@ambicapharmachem.in</p>
+            <p className="text-sm text-blue-700">Password: Ambica@123</p>
+            <p className="text-xs text-blue-600 mt-2">* Use "Forgot password?" if you need to reset</p>
           </div>
         </div>
 

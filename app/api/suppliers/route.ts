@@ -38,9 +38,15 @@ export async function GET(request: NextRequest) {
       Supplier.countDocuments(query)
     ]);
     
+    // Map _id to id for frontend compatibility
+    const suppliersWithId = suppliers.map((supplier: any) => ({
+      ...supplier,
+      id: supplier._id.toString()
+    }));
+    
     return NextResponse.json({
       success: true,
-      data: suppliers,
+      data: suppliersWithId,
       pagination: {
         page,
         limit,
@@ -68,9 +74,16 @@ export async function POST(request: NextRequest) {
     const supplier = new Supplier(body);
     await supplier.save();
     
+    // Convert to plain object and map _id to id
+    const supplierObj = supplier.toObject();
+    const supplierWithId = {
+      ...supplierObj,
+      id: supplierObj._id.toString()
+    };
+    
     return NextResponse.json({
       success: true,
-      data: supplier,
+      data: supplierWithId,
       message: 'Supplier created successfully'
     }, { status: 201 });
     

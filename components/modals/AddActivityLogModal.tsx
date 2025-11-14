@@ -251,7 +251,7 @@ export default function AddActivityLogModal({ isOpen, onClose, onSave }: AddActi
               value={formData.details}
               onChange={(e) => setFormData({ ...formData, details: e.target.value })}
               rows={4}
-              className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               placeholder="Provide detailed information about what happened, including specific values, changes made, or outcomes"
               required
             />

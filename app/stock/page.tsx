@@ -33,6 +33,7 @@ export default function StockManagement() {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingChemical, setEditingChemical] = useState<Chemical | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
 
   // Fetch chemicals data
@@ -55,9 +56,25 @@ export default function StockManagement() {
     }
   };
 
+  // Auto-sync alerts with stock status
+  const syncAlertsWithStock = async () => {
+    try {
+      await fetch('/api/alerts/sync', {
+        method: 'POST',
+      });
+    } catch (error) {
+      console.error('Error syncing alerts:', error);
+    }
+  };
+
   // Load data on component mount
   useEffect(() => {
-    fetchChemicals();
+    const loadData = async () => {
+      await fetchChemicals();
+      // Auto-sync alerts after loading chemicals
+      await syncAlertsWithStock();
+    };
+    loadData();
   }, []);
 
   // Filter and search logic
@@ -123,18 +140,52 @@ export default function StockManagement() {
 
   const handleAddChemical = async (newChemical: Omit<Chemical, 'id'>) => {
     try {
-      const response = await apiService.createChemical(newChemical);
-      if (response.success && response.data) {
-        setChemicals(prev => [...prev, response.data as Chemical]);
-        alert(`Chemical "${(response.data as Chemical).name}" added successfully!`);
-        // Refresh data to get updated list
-        fetchChemicals();
+      // The modal already saved the chemical to the database
+      // We just need to refresh the list to show it
+      await fetchChemicals();
+      // Sync alerts after adding chemical
+      await syncAlertsWithStock();
+    } catch (error) {
+      console.error('Error refreshing chemicals:', error);
+    }
+  };
+
+  const handleEditChemical = async (updatedChemical: Omit<Chemical, 'id'>) => {
+    try {
+      // The modal already updated the chemical in the database
+      // We just need to refresh the list to show it
+      await fetchChemicals();
+      // Sync alerts after updating chemical
+      await syncAlertsWithStock();
+      setEditingChemical(null);
+    } catch (error) {
+      console.error('Error refreshing chemicals:', error);
+    }
+  };
+
+  const handleDeleteChemical = async (chemical: Chemical) => {
+    if (!window.confirm(`Are you sure you want to delete "${chemical.name}" (Batch: ${chemical.batchNo})?\n\nThis action cannot be undone.\nAll related alerts will also be deleted.`)) {
+      return;
+    }
+
+    try {
+      const response = await apiService.deleteChemical(chemical.id);
+      
+      if (response.success) {
+        const alertMsg = (response as any).deletedAlerts 
+          ? `Chemical "${chemical.name}" and ${(response as any).deletedAlerts} related alert(s) deleted successfully!`
+          : `Chemical "${chemical.name}" deleted successfully!`;
+        window.alert(alertMsg);
+        // Refresh the list
+        await fetchChemicals();
+        // Sync alerts after deleting chemical
+        await syncAlertsWithStock();
       } else {
-        alert(`Failed to add chemical: ${response.error}`);
+        window.alert(`Failed to delete chemical: ${response.error}`);
       }
     } catch (error) {
-      console.error('Error adding chemical:', error);
-      alert('Failed to add chemical. Please try again.');
+      console.error('Error deleting chemical:', error);
+      window.alert('Failed to delete chemical. Please try again.');
     }
   };
 
@@ -365,7 +416,12 @@ export default function StockManagement() {
 
                     <TableCell>
                       <div className="flex items-center space-x-2">
-                        <Button size="sm" variant="outline">
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => setEditingChemical(chemical)}
+                          title="Edit Chemical"
+                        >
                           <Edit className="h-3 w-3" />
                         </Button>
                         
@@ -376,12 +432,19 @@ export default function StockManagement() {
                             onClick={() => handleReorderClick(chemical)}
                             disabled={isLoading}
                             className="text-warning-600 border-warning-300 hover:bg-warning-50"
+                            title="Trigger Reorder"
                           >
                             <RefreshCw className="h-3 w-3" />
                           </Button>
                         )}
                         
-                        <Button size="sm" variant="outline" className="text-danger-600 border-danger-300 hover:bg-danger-50">
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="text-danger-600 border-danger-300 hover:bg-danger-50"
+                          onClick={() => handleDeleteChemical(chemical)}
+                          title="Delete Chemical"
+                        >
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
@@ -408,6 +471,15 @@ export default function StockManagement() {
           isOpen={showAddModal}
           onClose={() => setShowAddModal(false)}
           onSave={handleAddChemical}
+        />
+
+        {/* Edit Chemical Modal */}
+        <AddChemicalModal 
+          isOpen={!!editingChemical}
+          onClose={() => setEditingChemical(null)}
+          onSave={handleEditChemical}
+          chemical={editingChemical}
+          isEdit={true}
         />
       </div>
     </Layout>

@@ -26,7 +26,7 @@ export default function AddPurchaseOrderModal({ isOpen, onClose, onSave }: AddPu
     supplier: '',
     orderDate: new Date().toISOString().split('T')[0],
     expectedDelivery: '',
-    status: 'draft' as PurchaseOrder['status'],
+    status: 'pending' as PurchaseOrder['status'],
     priority: 'medium' as PurchaseOrder['priority'],
     notes: ''
   });
@@ -99,11 +99,13 @@ export default function AddPurchaseOrderModal({ isOpen, onClose, onSave }: AddPu
       if (chemical) {
         updatedItems[index].chemicalName = chemical.name;
         updatedItems[index].unitPrice = chemical.costPerUnit;
+        // Recalculate total with new price
+        updatedItems[index].total = updatedItems[index].quantity * chemical.costPerUnit;
       }
     }
 
-    // Calculate total
-    if (field === 'quantity' || field === 'unitPrice') {
+    // Calculate total when quantity changes
+    if (field === 'quantity') {
       updatedItems[index].total = updatedItems[index].quantity * updatedItems[index].unitPrice;
     }
 
@@ -116,6 +118,23 @@ export default function AddPurchaseOrderModal({ isOpen, onClose, onSave }: AddPu
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate form
+    if (!formData.supplier) {
+      window.alert('Please select a supplier');
+      return;
+    }
+    
+    if (!formData.expectedDelivery) {
+      window.alert('Please select an expected delivery date');
+      return;
+    }
+    
+    if (orderItems.length === 0 || !orderItems[0].chemicalId) {
+      window.alert('Please add at least one chemical to the order');
+      return;
+    }
+    
     setIsLoading(true);
 
     try {
@@ -123,6 +142,7 @@ export default function AddPurchaseOrderModal({ isOpen, onClose, onSave }: AddPu
       
       const newPurchaseOrder: Omit<PurchaseOrder, 'id'> = {
         ...formData,
+        status: 'pending', // Always start as pending
         chemicals: orderItems.map(item => ({
           chemicalId: item.chemicalId,
           chemicalName: item.chemicalName,
@@ -133,24 +153,34 @@ export default function AddPurchaseOrderModal({ isOpen, onClose, onSave }: AddPu
         totalAmount
       };
 
-      onSave(newPurchaseOrder);
+      // Save to database via API
+      const response = await apiService.createPurchaseOrder(newPurchaseOrder);
       
-      // Reset form
-      setFormData({
-        poNumber: '',
-        supplier: '',
-        orderDate: new Date().toISOString().split('T')[0],
-        expectedDelivery: '',
-        status: 'draft',
-        priority: 'medium',
-        notes: ''
-      });
-      setOrderItems([{ chemicalId: '', chemicalName: '', quantity: 0, unitPrice: 0, total: 0 }]);
-      
-      onClose();
+      if (response.success) {
+        window.alert(`✅ Purchase Order ${formData.poNumber} created successfully!`);
+        
+        // Call parent's onSave to refresh the list
+        await onSave(newPurchaseOrder);
+        
+        // Reset form
+        setFormData({
+          poNumber: '',
+          supplier: '',
+          orderDate: new Date().toISOString().split('T')[0],
+          expectedDelivery: '',
+          status: 'pending',
+          priority: 'medium',
+          notes: ''
+        });
+        setOrderItems([{ chemicalId: '', chemicalName: '', quantity: 0, unitPrice: 0, total: 0 }]);
+        
+        onClose();
+      } else {
+        window.alert(`Failed to create purchase order: ${response.error}`);
+      }
     } catch (error) {
       console.error('Error creating purchase order:', error);
-      alert('Failed to create purchase order. Please try again.');
+      window.alert('Failed to create purchase order. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -305,14 +335,19 @@ export default function AddPurchaseOrderModal({ isOpen, onClose, onSave }: AddPu
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Unit Price *</label>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Unit Price * 
+                      <span className="text-xs text-gray-500 ml-2">(from stock)</span>
+                    </label>
                     <input
                       type="number"
                       min="0"
                       step="0.01"
                       value={item.unitPrice}
-                      onChange={(e) => updateOrderItem(index, 'unitPrice', parseFloat(e.target.value) || 0)}
-                      className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      readOnly
+                      disabled
+                      className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-700 bg-gray-100 cursor-not-allowed"
+                      title="Unit price is automatically fetched from stock management (Cost Per Unit)"
                       required
                     />
                   </div>
@@ -360,7 +395,7 @@ export default function AddPurchaseOrderModal({ isOpen, onClose, onSave }: AddPu
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={3}
-              className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               placeholder="Additional notes or special instructions..."
             />
           </div>

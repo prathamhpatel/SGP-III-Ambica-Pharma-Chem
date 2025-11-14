@@ -1,5 +1,16 @@
 {
+  "/analytics/page": "app/analytics/page.js",
+  "/alerts/page": "app/alerts/page.js",
   "/stock/page": "app/stock/page.js",
+  "/purchase-orders/page": "app/purchase-orders/page.js",
+  "/logs/page": "app/logs/page.js",
   "/page": "app/page.js",
-  "/purchase-orders/page": "app/purchase-orders/page.js"
+  "/api/alerts/route": "app/api/alerts/route.js",
+  "/api/alerts/cleanup/route": "app/api/alerts/cleanup/route.js",
+  "/api/chemicals/route": "app/api/chemicals/route.js",
+  "/api/suppliers/route": "app/api/suppliers/route.js",
+  "/api/alerts/sync/route": "app/api/alerts/sync/route.js",
+  "/api/activity-logs/route": "app/api/activity-logs/route.js",
+  "/api/purchase-orders/route": "app/api/purchase-orders/route.js",
+  "/api/purchase-orders/auto-update-status/route": "app/api/purchase-orders/auto-update-status/route.js"
 }

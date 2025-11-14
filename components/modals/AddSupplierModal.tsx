@@ -38,28 +38,54 @@ export default function AddSupplierModal({
     setIsLoading(true);
 
     try {
-      const supplierData: Omit<Supplier, 'id' | 'totalOrders'> = {
+      const supplierData = {
         ...formData,
+        totalOrders: supplier?.totalOrders || 0,
         lastOrderDate: supplier?.lastOrderDate
       };
 
-      onSave(supplierData);
+      // Save to MongoDB via API
+      const url = isEdit && supplier?.id 
+        ? `/api/suppliers/${supplier.id}`
+        : '/api/suppliers';
       
-      // Reset form if not editing
-      if (!isEdit) {
-        setFormData({
-          name: '',
-          contact: '',
-          email: '',
-          phone: '',
-          address: '',
-          rating: 0,
-          chemicals: [],
-          status: 'active'
-        });
+      const method = isEdit ? 'PUT' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(supplierData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        alert(isEdit ? 'Supplier updated successfully!' : 'Supplier added successfully!');
+        
+        // Reset form if not editing
+        if (!isEdit) {
+          setFormData({
+            name: '',
+            contact: '',
+            email: '',
+            phone: '',
+            address: '',
+            rating: 0,
+            chemicals: [],
+            status: 'active'
+          });
+        }
+        
+        // Call onSave to refresh parent component and wait for it to complete
+        await onSave(data.data);
+        
+        // Close modal after parent has refreshed
+        onClose();
+      } else {
+        alert(data.error || 'Failed to save supplier. Please try again.');
       }
-      
-      onClose();
     } catch (error) {
       console.error('Error saving supplier:', error);
       alert('Failed to save supplier. Please try again.');
@@ -143,7 +169,7 @@ export default function AddSupplierModal({
               value={formData.address}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
               rows={3}
-              className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               placeholder="Complete business address with city, state, and postal code"
               required
             />

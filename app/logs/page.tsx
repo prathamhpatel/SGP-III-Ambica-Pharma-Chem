@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { formatDateTime, exportToCSV } from '@/lib/utils';
 import { ActivityLog } from '@/types';
+import { apiService } from '@/lib/api';
 import AddActivityLogModal from '@/components/modals/AddActivityLogModal';
 
 export default function ActivityLogsPage() {
@@ -33,34 +34,62 @@ export default function ActivityLogsPage() {
   const [userFilter, setUserFilter] = useState<string>('all');
   const [dateRange, setDateRange] = useState<string>('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
 
-  // Filter logs
-  const filteredLogs = useMemo(() => {
-    return logs.filter(log => {
-      const matchesSearch = log.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           log.details.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           log.user.toLowerCase().includes(searchTerm.toLowerCase());
+  // Fetch activity logs from database
+  const fetchLogs = async () => {
+    setDataLoading(true);
+    try {
+      const response = await apiService.getActivityLogs({
+        category: categoryFilter !== 'all' ? categoryFilter : undefined,
+        severity: severityFilter !== 'all' ? severityFilter : undefined,
+        user: userFilter !== 'all' ? userFilter : undefined,
+        dateRange: dateRange !== 'all' ? dateRange : undefined,
+        limit: 500
+      });
       
-      const matchesCategory = categoryFilter === 'all' || log.category === categoryFilter;
-      const matchesSeverity = severityFilter === 'all' || log.severity === severityFilter;
-      const matchesUser = userFilter === 'all' || log.user === userFilter;
-      
-      let matchesDate = true;
-      if (dateRange !== 'all') {
-        const logDate = new Date(log.timestamp);
-        const now = new Date();
-        const daysAgo = parseInt(dateRange);
-        const cutoffDate = new Date(now.getTime() - (daysAgo * 24 * 60 * 60 * 1000));
-        matchesDate = logDate >= cutoffDate;
+      if (response.success && response.data) {
+        setLogs(response.data as ActivityLog[]);
+      } else {
+        console.error('Failed to fetch activity logs:', response.error);
+        setLogs([]);
       }
-      
-      return matchesSearch && matchesCategory && matchesSeverity && matchesUser && matchesDate;
+    } catch (error) {
+      console.error('Error fetching activity logs:', error);
+      setLogs([]);
+    } finally {
+      setDataLoading(false);
+    }
+  };
+
+  // Load data on component mount
+  useEffect(() => {
+    fetchLogs();
+  }, []);
+
+  // Refetch when filters change
+  useEffect(() => {
+    if (!dataLoading) {
+      fetchLogs();
+    }
+  }, [categoryFilter, severityFilter, userFilter, dateRange]);
+
+  // Client-side search filter (server handles category, severity, user, dateRange)
+  const filteredLogs = useMemo(() => {
+    if (!searchTerm) return logs;
+    
+    return logs.filter(log => {
+      const searchLower = searchTerm.toLowerCase();
+      return log.action.toLowerCase().includes(searchLower) ||
+             log.details.toLowerCase().includes(searchLower) ||
+             log.user.toLowerCase().includes(searchLower) ||
+             (log.category && log.category.toLowerCase().includes(searchLower));
     });
-  }, [logs, searchTerm, categoryFilter, severityFilter, userFilter, dateRange]);
+  }, [logs, searchTerm]);
 
   // Get unique users for filter
   const users = useMemo(() => {
-    const uniqueUsers = [...new Set(logs.map(log => log.user))];
+    const uniqueUsers = Array.from(new Set(logs.map(log => log.user)));
     return uniqueUsers.sort();
   }, [logs]);
 

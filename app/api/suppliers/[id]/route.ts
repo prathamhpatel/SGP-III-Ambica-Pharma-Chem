@@ -9,7 +9,7 @@ export async function GET(
   try {
     await connectDB();
     
-    const supplier = await Supplier.findById(params.id);
+    const supplier = await Supplier.findById(params.id).lean();
     
     if (!supplier) {
       return NextResponse.json(
@@ -18,9 +18,15 @@ export async function GET(
       );
     }
     
+    // Map _id to id for frontend compatibility
+    const supplierWithId = {
+      ...supplier,
+      id: supplier._id.toString()
+    };
+    
     return NextResponse.json({
       success: true,
-      data: supplier
+      data: supplierWithId
     });
     
   } catch (error) {
@@ -45,7 +51,7 @@ export async function PUT(
       params.id,
       body,
       { new: true, runValidators: true }
-    );
+    ).lean();
     
     if (!supplier) {
       return NextResponse.json(
@@ -54,9 +60,15 @@ export async function PUT(
       );
     }
     
+    // Map _id to id for frontend compatibility
+    const supplierWithId = {
+      ...supplier,
+      id: supplier._id.toString()
+    };
+    
     return NextResponse.json({
       success: true,
-      data: supplier,
+      data: supplierWithId,
       message: 'Supplier updated successfully'
     });
     

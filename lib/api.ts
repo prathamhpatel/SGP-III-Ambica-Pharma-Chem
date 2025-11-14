@@ -1,6 +1,6 @@
 // API service layer for frontend-backend communication
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001';
+const API_BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -148,10 +148,33 @@ class ApiService {
     return this.request(`/purchase-orders?${searchParams.toString()}`);
   }
 
+  async getPurchaseOrder(id: string) {
+    return this.request(`/purchase-orders/${id}`);
+  }
+
   async createPurchaseOrder(data: any) {
     return this.request('/purchase-orders', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  }
+
+  async updatePurchaseOrder(id: string, data: any) {
+    return this.request(`/purchase-orders/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deletePurchaseOrder(id: string) {
+    return this.request(`/purchase-orders/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async autoUpdatePOStatus() {
+    return this.request('/purchase-orders/auto-update-status', {
+      method: 'POST',
     });
   }
 
@@ -181,9 +204,49 @@ class ApiService {
     });
   }
 
+  async cleanupOrphanedAlerts() {
+    return this.request('/alerts/cleanup', {
+      method: 'POST',
+    });
+  }
+
+  async deleteAllAlerts() {
+    return this.request('/alerts/cleanup', {
+      method: 'DELETE',
+    });
+  }
+
   // Dashboard stats
   async getDashboardStats() {
     return this.request('/dashboard/stats');
+  }
+
+  // Activity Log API methods
+  async getActivityLogs(params?: {
+    page?: number;
+    limit?: number;
+    category?: string;
+    severity?: string;
+    user?: string;
+    dateRange?: string;
+  }) {
+    const searchParams = new URLSearchParams();
+    
+    if (params?.page) searchParams.append('page', params.page.toString());
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.category) searchParams.append('category', params.category);
+    if (params?.severity) searchParams.append('severity', params.severity);
+    if (params?.user) searchParams.append('user', params.user);
+    if (params?.dateRange) searchParams.append('dateRange', params.dateRange);
+
+    return this.request(`/activity-logs?${searchParams.toString()}`);
+  }
+
+  async createActivityLog(data: any) {
+    return this.request('/activity-logs', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 }
 

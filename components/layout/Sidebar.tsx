@@ -73,7 +73,10 @@ export default function Sidebar() {
     )}>
       <div className="flex flex-col h-full">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+        <div className={cn(
+          'flex items-center p-4 border-b border-gray-200',
+          isCollapsed ? 'justify-center' : 'justify-between'
+        )}>
           {!isCollapsed && (
             <div className="flex items-center space-x-2">
               <Home className="h-8 w-8 text-primary-600" />
@@ -86,11 +89,12 @@ export default function Sidebar() {
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
             className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {isCollapsed ? (
-              <ChevronRight className="h-4 w-4 text-gray-600" />
+              <ChevronRight className="h-5 w-5 text-gray-600" />
             ) : (
-              <ChevronLeft className="h-4 w-4 text-gray-600" />
+              <ChevronLeft className="h-5 w-5 text-gray-600" />
             )}
           </button>
         </div>
@@ -106,15 +110,19 @@ export default function Sidebar() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  'flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+                  'flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                   isActive 
                     ? 'bg-primary-50 text-primary-700 border border-primary-200' 
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900',
-                  isCollapsed && 'justify-center'
+                  isCollapsed ? 'justify-center' : 'space-x-3'
                 )}
                 title={isCollapsed ? item.title : undefined}
               >
-                <Icon className={cn('h-5 w-5', isActive && 'text-primary-600')} />
+                <Icon className={cn(
+                  'flex-shrink-0',
+                  isCollapsed ? 'h-6 w-6' : 'h-5 w-5',
+                  isActive && 'text-primary-600'
+                )} />
                 {!isCollapsed && <span>{item.title}</span>}
               </Link>
             );
@@ -126,12 +134,15 @@ export default function Sidebar() {
           <Link
             href="/settings"
             className={cn(
-              'flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors',
-              isCollapsed && 'justify-center'
+              'flex items-center px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors',
+              isCollapsed ? 'justify-center' : 'space-x-3'
             )}
             title={isCollapsed ? 'Settings' : undefined}
           >
-            <Settings className="h-5 w-5" />
+            <Settings className={cn(
+              'flex-shrink-0',
+              isCollapsed ? 'h-6 w-6' : 'h-5 w-5'
+            )} />
             {!isCollapsed && <span>Settings</span>}
           </Link>
         </div>

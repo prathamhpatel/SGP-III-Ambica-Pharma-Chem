@@ -8,15 +8,24 @@
     "start": "next start",
     "lint": "next lint",
     "init-db": "node scripts/seed-database.js",
-    "view-db": "node scripts/view-database.js"
+    "view-db": "node scripts/view-database.js",
+    "seed-user": "node scripts/seed-user.js"
   },
   "dependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cookie": "^0.6.0",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/nodemailer": "^7.0.3",
+    "bcryptjs": "^3.0.3",
     "clsx": "^2.0.0",
+    "cookie": "^1.0.2",
     "date-fns": "^2.30.0",
+    "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.294.0",
     "mongodb": "^6.19.0",
     "mongoose": "^8.18.0",
     "next": "14.0.4",
+    "nodemailer": "^7.0.10",
     "react": "^18",
     "react-dom": "^18",
     "recharts": "^2.8.0"

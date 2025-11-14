@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Bell, Search, User, LogOut, Menu } from 'lucide-react';
 import { mockAlerts } from '@/lib/mockData';
 
@@ -8,11 +9,49 @@ interface HeaderProps {
   onMenuClick?: () => void;
 }
 
+interface UserData {
+  name: string;
+  email: string;
+  role: string;
+  department?: string;
+}
+
 export default function Header({ onMenuClick }: HeaderProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const router = useRouter();
   
   const unreadAlerts = mockAlerts.filter(alert => !alert.isRead);
+
+  // Get user data from localStorage
+  useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try {
+        const user = JSON.parse(userStr);
+        setUserData(user);
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+      }
+    }
+  }, []);
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
+      localStorage.removeItem('isAuthenticated');
+      router.push('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Clear local storage anyway
+      localStorage.clear();
+      router.push('/login');
+    }
+  };
 
   return (
     <header className="bg-white border-b border-gray-200 px-6 py-4">
@@ -104,24 +143,30 @@ export default function Header({ onMenuClick }: HeaderProps) {
                 <User className="h-4 w-4 text-white" />
               </div>
               <div className="hidden md:block text-left">
-                <p className="text-sm font-medium text-gray-900">John Doe</p>
-                <p className="text-xs text-gray-500">Admin</p>
+                <p className="text-sm font-medium text-gray-900">
+                  {userData?.name || 'User'}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {userData?.role ? userData.role.charAt(0).toUpperCase() + userData.role.slice(1) : 'Admin'}
+                </p>
               </div>
             </button>
 
             {/* Profile Dropdown */}
             {showProfile && (
-              <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                <div className="p-3 border-b border-gray-200">
-                  <p className="text-sm font-medium text-gray-900">John Doe</p>
-                  <p className="text-xs text-gray-500">john.doe@ambicapharma.com</p>
+              <div className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                <div className="p-4 border-b border-gray-200">
+                  <p className="text-sm font-medium text-gray-900">{userData?.name || 'User'}</p>
+                  <p className="text-xs text-gray-500">{userData?.email || 'user@example.com'}</p>
+                  {userData?.department && (
+                    <p className="text-xs text-gray-400 mt-1">{userData.department}</p>
+                  )}
                 </div>
                 <div className="p-2">
-                  <button className="flex items-center space-x-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg">
-                    <User className="h-4 w-4" />
-                    <span>Profile</span>
-                  </button>
-                  <button className="flex items-center space-x-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg">
+                  <button 
+                    onClick={handleLogout}
+                    className="flex items-center space-x-2 w-full px-3 py-2 text-sm text-danger-600 hover:bg-danger-50 rounded-lg transition-colors"
+                  >
                     <LogOut className="h-4 w-4" />
                     <span>Sign Out</span>
                   </button>

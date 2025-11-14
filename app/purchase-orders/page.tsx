@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -21,11 +21,13 @@ import {
   Send,
   CheckCircle,
   XCircle,
-  Clock
+  Clock,
+  RefreshCw
 } from 'lucide-react';
 import { formatCurrency, formatDate, exportToCSV } from '@/lib/utils';
 import { PurchaseOrder } from '@/types';
 import { sendPO, trackDelivery } from '@/lib/automation';
+import { apiService } from '@/lib/api';
 import AddPurchaseOrderModal from '@/components/modals/AddPurchaseOrderModal';
 
 export default function PurchaseOrdersPage() {
@@ -36,6 +38,56 @@ export default function PurchaseOrdersPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
+
+  // Fetch purchase orders from database
+  const fetchOrders = async () => {
+    setDataLoading(true);
+    try {
+      const response = await apiService.getPurchaseOrders();
+      if (response.success && response.data) {
+        setOrders(response.data as PurchaseOrder[]);
+      } else {
+        console.error('Failed to fetch purchase orders:', response.error);
+        setOrders([]);
+      }
+    } catch (error) {
+      console.error('Error fetching purchase orders:', error);
+      setOrders([]);
+    } finally {
+      setDataLoading(false);
+    }
+  };
+
+  // Auto-update PO statuses based on delivery dates
+  const autoUpdateStatuses = async () => {
+    try {
+      const response = await apiService.autoUpdatePOStatus();
+      if (response.success && response.data) {
+        const { ordersUpdated, stockUpdates } = response.data as any;
+        if (ordersUpdated > 0) {
+          console.log(`Auto-updated ${ordersUpdated} purchase orders to delivered`);
+          if (stockUpdates && stockUpdates.length > 0) {
+            console.log('Stock updated for:', stockUpdates);
+          }
+          // Refresh the orders list
+          await fetchOrders();
+        }
+      }
+    } catch (error) {
+      console.error('Error auto-updating PO statuses:', error);
+    }
+  };
+
+  // Load data on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      await fetchOrders();
+      // Auto-update statuses on page load
+      await autoUpdateStatuses();
+    };
+    loadData();
+  }, []);
 
   // Filter orders
   const filteredOrders = useMemo(() => {
@@ -62,12 +114,56 @@ export default function PurchaseOrdersPage() {
     return { total, pending, approved, delivered, totalValue };
   }, [orders]);
 
+  const handleCreatePO = async (newPO: Omit<PurchaseOrder, 'id'>) => {
+    try {
+      await fetchOrders();
+    } catch (error) {
+      console.error('Error refreshing purchase orders:', error);
+    }
+  };
+
+  const handleMarkAsDelivered = async (order: PurchaseOrder) => {
+    if (!window.confirm(`Mark PO ${order.poNumber} as delivered?\n\nThis will:\n- Update order status to 'delivered'\n- Update stock quantities for all chemicals\n- Update chemical prices\n- Re-sync alerts`)) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await apiService.updatePurchaseOrder(order.id, {
+        status: 'delivered',
+        actualDelivery: new Date()
+      });
+      
+      if (response.success) {
+        const stockUpdates = (response as any).stockUpdates || [];
+        let message = `✅ Purchase Order ${order.poNumber} marked as delivered!`;
+        
+        if (stockUpdates.length > 0) {
+          message += `\n\n📦 Stock Updated:`;
+          stockUpdates.forEach((update: any) => {
+            message += `\n• ${update.chemicalName}: +${update.quantityAdded} (Total: ${update.newQuantity})`;
+          });
+        }
+        
+        window.alert(message);
+        await fetchOrders();
+      } else {
+        window.alert(`Failed to mark as delivered: ${response.error}`);
+      }
+    } catch (error) {
+      console.error('Error marking order as delivered:', error);
+      window.alert('Failed to mark order as delivered. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSendPO = async (order: PurchaseOrder) => {
     setIsLoading(true);
     try {
       const result = await sendPO(order);
       if (result.success) {
-        alert(result.message);
+        window.alert(result.message);
         setOrders(prev => prev.map(o => 
           o.id === order.id 
             ? { ...o, status: 'approved' as any }
@@ -75,7 +171,7 @@ export default function PurchaseOrdersPage() {
         ));
       }
     } catch (error) {
-      alert('Failed to send purchase order');
+      window.alert('Failed to send purchase order');
     } finally {
       setIsLoading(false);
     }
@@ -86,10 +182,22 @@ export default function PurchaseOrdersPage() {
     try {
       const result = await trackDelivery(order.poNumber);
       if (result.success) {
-        alert(`Delivery Status: ${result.status.toUpperCase()}${result.eta ? ` - ETA: ${formatDate(result.eta)}` : ''}${result.location ? ` - Location: ${result.location}` : ''}`);
+        window.alert(`Delivery Status: ${result.status.toUpperCase()}${result.eta ? ` - ETA: ${formatDate(result.eta)}` : ''}${result.location ? ` - Location: ${result.location}` : ''}`);
       }
     } catch (error) {
-      alert('Failed to track delivery');
+      window.alert('Failed to track delivery');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAutoUpdate = async () => {
+    setIsLoading(true);
+    try {
+      await autoUpdateStatuses();
+      window.alert('PO statuses updated based on delivery dates!');
+    } catch (error) {
+      window.alert('Failed to auto-update statuses');
     } finally {
       setIsLoading(false);
     }
@@ -99,14 +207,6 @@ export default function PurchaseOrdersPage() {
     exportToCSV(filteredOrders, `purchase-orders-${Date.now()}.csv`);
   };
 
-  const handleCreatePurchaseOrder = (newPO: Omit<PurchaseOrder, 'id'>) => {
-    const purchaseOrder: PurchaseOrder = {
-      ...newPO,
-      id: Date.now().toString()
-    };
-    setOrders(prev => [purchaseOrder, ...prev]);
-    alert(`Purchase Order ${purchaseOrder.poNumber} created successfully!`);
-  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -129,6 +229,19 @@ export default function PurchaseOrdersPage() {
     }
   };
 
+  if (dataLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <RefreshCw className="h-12 w-12 text-primary-600 animate-spin mx-auto mb-4" />
+            <p className="text-gray-600">Loading purchase orders...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -142,6 +255,15 @@ export default function PurchaseOrdersPage() {
             <Button variant="outline" onClick={handleExport}>
               <Download className="h-4 w-4 mr-2" />
               Export CSV
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={handleAutoUpdate}
+              disabled={isLoading}
+              title="Auto-update PO statuses based on delivery dates"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Auto-Update
             </Button>
             <Button onClick={() => setShowCreateModal(true)}>
               <Plus className="h-4 w-4 mr-2" />
@@ -379,8 +501,21 @@ export default function PurchaseOrdersPage() {
                           variant="outline"
                           onClick={() => handleTrackDelivery(order)}
                           disabled={isLoading}
+                          title="Track Delivery"
                         >
                           <Truck className="h-3 w-3" />
+                        </Button>
+                      )}
+                      
+                      {(order.status === 'shipped' || order.status === 'approved' || order.status === 'pending') && (
+                        <Button 
+                          size="sm" 
+                          onClick={() => handleMarkAsDelivered(order)}
+                          disabled={isLoading}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          title="Mark as Delivered"
+                        >
+                          <CheckCircle className="h-3 w-3" />
                         </Button>
                       )}
                     </div>
@@ -488,7 +623,7 @@ export default function PurchaseOrdersPage() {
         <AddPurchaseOrderModal
           isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
-          onSave={handleCreatePurchaseOrder}
+          onSave={handleCreatePO}
         />
       </div>
     </Layout>

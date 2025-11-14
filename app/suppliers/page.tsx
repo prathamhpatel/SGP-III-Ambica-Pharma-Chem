@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -39,33 +39,48 @@ export default function SuppliersPage() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [dataLoading, setDataLoading] = useState(true);
 
-  const handleAddSupplier = async (newSupplierData: Omit<Supplier, 'id' | 'totalOrders'>) => {
+  // Fetch suppliers data
+  const fetchSuppliers = async () => {
+    setDataLoading(true);
     try {
-      const response = await apiService.createSupplier(newSupplierData);
+      const response = await apiService.getSuppliers();
       if (response.success && response.data) {
-        setSuppliers(prev => [...prev, response.data as Supplier]);
-        alert(`Supplier "${(response.data as Supplier).name}" added successfully!`);
+        setSuppliers(response.data as Supplier[]);
       } else {
-        alert(`Failed to add supplier: ${response.error}`);
+        console.error('Failed to fetch suppliers:', response.error);
+        setSuppliers([]);
       }
     } catch (error) {
-      console.error('Error adding supplier:', error);
-      alert('Failed to add supplier. Please try again.');
+      console.error('Error fetching suppliers:', error);
+      setSuppliers([]);
+    } finally {
+      setDataLoading(false);
     }
   };
 
-  const handleEditSupplier = (updatedSupplierData: Omit<Supplier, 'id' | 'totalOrders'>) => {
-    if (!editingSupplier) return;
-    
-    setSuppliers(prev => prev.map(s => 
-      s.id === editingSupplier.id 
-        ? { ...s, ...updatedSupplierData }
-        : s
-    ));
-    
-    alert(`Supplier "${updatedSupplierData.name}" updated successfully!`);
-    setEditingSupplier(null);
+  // Load data on component mount
+  useEffect(() => {
+    fetchSuppliers();
+  }, []);
+
+  const handleAddSupplier = async (newSupplierData: Omit<Supplier, 'id' | 'totalOrders'>) => {
+    try {
+      // Refresh data to get the newly added supplier
+      await fetchSuppliers();
+    } catch (error) {
+      console.error('Error refreshing suppliers:', error);
+    }
+  };
+
+  const handleEditSupplier = async (updatedSupplierData: Omit<Supplier, 'id' | 'totalOrders'>) => {
+    try {
+      // Refresh data to get the updated supplier
+      await fetchSuppliers();
+    } catch (error) {
+      console.error('Error refreshing suppliers:', error);
+    }
   };
 
   // Filter suppliers
@@ -327,11 +342,9 @@ export default function SuppliersPage() {
                     <div>
                       <p className="font-medium text-gray-900">{supplier.chemicals.length} chemicals</p>
                       <div className="text-xs text-gray-500 mt-1">
-                        {supplier.chemicals.slice(0, 3).map(chemId => {
-                          const chemical = mockChemicals.find(c => c.id === chemId);
-                          return chemical?.name;
-                        }).filter(Boolean).join(', ')}
-                        {supplier.chemicals.length > 3 && ` +${supplier.chemicals.length - 3} more`}
+                        {supplier.chemicals.length > 0 
+                          ? `${supplier.chemicals.length} chemical${supplier.chemicals.length !== 1 ? 's' : ''} supplied`
+                          : 'No chemicals'}
                       </div>
                     </div>
                   </TableCell>
@@ -493,21 +506,17 @@ export default function SuppliersPage() {
                 {/* Supplied Chemicals */}
                 <div>
                   <h3 className="text-lg font-medium text-gray-900 mb-4">Supplied Chemicals</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {selectedSupplier.chemicals.map(chemId => {
-                      const chemical = mockChemicals.find(c => c.id === chemId);
-                      return chemical ? (
-                        <div key={chemId} className="bg-gray-50 rounded-lg p-3">
-                          <p className="font-medium text-gray-900">{chemical.name}</p>
-                          <p className="text-sm text-gray-600">{chemical.formula}</p>
-                          <p className="text-xs text-gray-500">{chemical.category}</p>
-                        </div>
-                      ) : null;
-                    })}
+                  <div className="bg-gray-50 rounded-lg p-6 text-center">
+                    <Package className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                    <p className="text-lg font-semibold text-gray-900">
+                      {selectedSupplier.chemicals.length} Chemical{selectedSupplier.chemicals.length !== 1 ? 's' : ''}
+                    </p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {selectedSupplier.chemicals.length > 0 
+                        ? 'Chemical details available in stock management'
+                        : 'No chemicals assigned to this supplier'}
+                    </p>
                   </div>
-                  {selectedSupplier.chemicals.length === 0 && (
-                    <p className="text-gray-500 text-center py-4">No chemicals assigned</p>
-                  )}
                 </div>
               </div>
             </div>

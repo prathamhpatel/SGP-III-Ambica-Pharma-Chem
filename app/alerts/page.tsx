@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -22,6 +22,7 @@ import {
 import { formatDateTime, getAlertIcon } from '@/lib/utils';
 import { Alert } from '@/types';
 import { triggerReorder, notifyManager } from '@/lib/automation';
+import { apiService } from '@/lib/api';
 import AddAlertModal from '@/components/modals/AddAlertModal';
 
 export default function AlertsPage() {
@@ -31,6 +32,112 @@ export default function AlertsPage() {
   const [showRead, setShowRead] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [syncingAlerts, setSyncingAlerts] = useState(false);
+
+  // Fetch alerts from database
+  const fetchAlerts = async () => {
+    setDataLoading(true);
+    try {
+      const response = await apiService.getAlerts();
+      if (response.success && response.data) {
+        setAlerts(response.data as Alert[]);
+      } else {
+        console.error('Failed to fetch alerts:', response.error);
+        setAlerts([]);
+      }
+    } catch (error) {
+      console.error('Error fetching alerts:', error);
+      setAlerts([]);
+    } finally {
+      setDataLoading(false);
+    }
+  };
+
+  // Sync alerts with current stock status
+  const syncAlerts = async () => {
+    setSyncingAlerts(true);
+    try {
+      const response = await fetch('/api/alerts/sync', {
+        method: 'POST',
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        window.alert(`Alert sync completed! ${data.data.newAlerts} new alerts created.`);
+        // Refresh alerts after sync
+        await fetchAlerts();
+      } else {
+        window.alert('Failed to sync alerts');
+      }
+    } catch (error) {
+      console.error('Error syncing alerts:', error);
+      window.alert('Failed to sync alerts');
+    } finally {
+      setSyncingAlerts(false);
+    }
+  };
+
+  // Clean up orphaned alerts (alerts for deleted chemicals)
+  const cleanupOrphanedAlerts = async () => {
+    if (!window.confirm('Clean up orphaned alerts?\n\nThis will remove alerts for chemicals that no longer exist.')) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await apiService.cleanupOrphanedAlerts();
+      
+      if (response.success) {
+        const data = response as any;
+        window.alert(`✅ Cleaned up ${data.deletedCount || 0} orphaned alert(s)!`);
+        await fetchAlerts();
+      } else {
+        window.alert(`Failed to cleanup alerts: ${response.error}`);
+      }
+    } catch (error) {
+      console.error('Error cleaning up alerts:', error);
+      window.alert('Failed to cleanup alerts. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Delete ALL alerts
+  const deleteAllAlerts = async () => {
+    if (!window.confirm('⚠️ DELETE ALL ALERTS?\n\nThis will permanently delete ALL alerts from the database.\n\nThis action CANNOT be undone!\n\nClick OK to proceed.')) {
+      return;
+    }
+
+    // Double confirmation
+    if (!window.confirm('Are you ABSOLUTELY SURE?\n\nThis will delete ALL alerts permanently!')) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await apiService.deleteAllAlerts();
+      
+      if (response.success) {
+        const data = response as any;
+        window.alert(`✅ Deleted all ${data.deletedCount || 0} alert(s)!`);
+        await fetchAlerts();
+      } else {
+        window.alert(`Failed to delete alerts: ${response.error}`);
+      }
+    } catch (error) {
+      console.error('Error deleting all alerts:', error);
+      window.alert('Failed to delete alerts. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Load alerts on component mount
+  useEffect(() => {
+    fetchAlerts();
+  }, []);
 
   // Filter alerts
   const filteredAlerts = useMemo(() => {
@@ -56,62 +163,79 @@ export default function AlertsPage() {
 
   const unreadCount = alerts.filter(a => !a.isRead).length;
 
-  const handleMarkAsRead = (alertId: string) => {
-    setAlerts(prev => prev.map(alert => 
-      alert.id === alertId ? { ...alert, isRead: true } : alert
-    ));
+  const handleMarkAsRead = async (alertId: string) => {
+    try {
+      const response = await apiService.markAlertAsRead(alertId);
+      if (response.success) {
+        setAlerts(prev => prev.map(alert => 
+          alert.id === alertId ? { ...alert, isRead: true } : alert
+        ));
+      }
+    } catch (error) {
+      console.error('Error marking alert as read:', error);
+    }
   };
 
-  const handleMarkAllAsRead = () => {
-    setAlerts(prev => prev.map(alert => ({ ...alert, isRead: true })));
+  const handleMarkAllAsRead = async () => {
+    try {
+      // Mark all alerts as read
+      const updatePromises = alerts
+        .filter(a => !a.isRead)
+        .map(alert => apiService.markAlertAsRead(alert.id));
+      
+      await Promise.all(updatePromises);
+      
+      setAlerts(prev => prev.map(alert => ({ ...alert, isRead: true })));
+    } catch (error) {
+      console.error('Error marking all alerts as read:', error);
+    }
   };
 
-  const handleCreateAlert = (newAlert: Omit<Alert, 'id' | 'timestamp'>) => {
-    const alert: Alert = {
-      ...newAlert,
-      id: Date.now().toString(),
-      timestamp: new Date().toISOString()
-    };
-    setAlerts(prev => [alert, ...prev]);
-    alert(`Alert "${alert.title}" created successfully!`);
+  const handleCreateAlert = async (newAlert: Omit<Alert, 'id' | 'timestamp'>) => {
+    try {
+      // Refresh alerts after creation
+      await fetchAlerts();
+    } catch (error) {
+      console.error('Error refreshing alerts:', error);
+    }
   };
 
-  const handleTriggerReorder = async (alert: Alert) => {
-    if (!alert.chemicalId) return;
+  const handleTriggerReorder = async (alertItem: Alert) => {
+    if (!alertItem.chemicalId) return;
     
     // Note: This would need to fetch chemical data from API in real implementation
-    // const chemical = mockChemicals.find(c => c.id === alert.chemicalId);
+    // const chemical = mockChemicals.find(c => c.id === alertItem.chemicalId);
     // if (!chemical) return;
 
     setIsLoading(true);
     try {
       // This would trigger reorder for the chemical in real implementation
-      alert('Reorder functionality would be triggered here');
-      handleMarkAsRead(alert.id);
+      window.alert('Reorder functionality would be triggered here');
+      handleMarkAsRead(alertItem.id);
     } catch (error) {
-      alert('Failed to trigger reorder');
+      window.alert('Failed to trigger reorder');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleNotifyManager = async (alert: Alert) => {
+  const handleNotifyManager = async (alertItem: Alert) => {
     setIsLoading(true);
     try {
       const result = await notifyManager({
-        type: alert.type,
-        title: alert.title,
-        message: alert.message,
-        severity: alert.severity,
-        chemicalId: alert.chemicalId
+        type: alertItem.type,
+        title: alertItem.title,
+        message: alertItem.message,
+        severity: alertItem.severity,
+        chemicalId: alertItem.chemicalId
       });
       
       if (result.success) {
-        alert(`${result.message}`);
-        handleMarkAsRead(alert.id);
+        window.alert(`${result.message}`);
+        handleMarkAsRead(alertItem.id);
       }
     } catch (error) {
-      alert('Failed to notify manager');
+      window.alert('Failed to notify manager');
     } finally {
       setIsLoading(false);
     }
@@ -128,9 +252,6 @@ export default function AlertsPage() {
   };
 
   const AlertCard = ({ alert }: { alert: Alert }) => {
-    // In real implementation, this would fetch chemical data from API
-    const chemical = null;
-    
     return (
       <div className={`border-l-4 rounded-lg p-4 ${getSeverityColor(alert.severity)} ${
         !alert.isRead ? 'ring-2 ring-blue-200' : ''
@@ -150,29 +271,6 @@ export default function AlertsPage() {
               </div>
               
               <p className="text-gray-700 mb-3">{alert.message}</p>
-              
-              {chemical && (
-                <div className="bg-white rounded-lg p-3 mb-3 border border-gray-200">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-                    <div>
-                      <span className="text-gray-500">Current Stock:</span>
-                      <p className="font-medium">{chemical.quantity} {chemical.unit}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Threshold:</span>
-                      <p className="font-medium">{chemical.reorderThreshold} {chemical.unit}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Batch:</span>
-                      <p className="font-medium">{chemical.batchNo}</p>
-                    </div>
-                    <div>
-                      <span className="text-gray-500">Location:</span>
-                      <p className="font-medium">{chemical.location}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
               
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4">
@@ -233,13 +331,6 @@ export default function AlertsPage() {
                 <MessageSquare className="h-4 w-4 mr-2" />
                 Add Note
               </Button>
-              
-              {chemical && (
-                <Button size="sm" variant="outline">
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  View Chemical
-                </Button>
-              )}
             </div>
           </div>
         )}
@@ -259,6 +350,33 @@ export default function AlertsPage() {
             </p>
           </div>
           <div className="flex items-center space-x-3">
+            <Button 
+              variant="outline" 
+              onClick={syncAlerts}
+              disabled={syncingAlerts || dataLoading}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${syncingAlerts ? 'animate-spin' : ''}`} />
+              {syncingAlerts ? 'Syncing...' : 'Sync Alerts'}
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={cleanupOrphanedAlerts}
+              disabled={isLoading || dataLoading}
+              title="Remove alerts for deleted chemicals"
+            >
+              <XCircle className="h-4 w-4 mr-2" />
+              Cleanup
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={deleteAllAlerts}
+              disabled={isLoading || dataLoading}
+              className="text-red-600 border-red-600 hover:bg-red-50"
+              title="Delete ALL alerts (use with caution)"
+            >
+              <AlertTriangle className="h-4 w-4 mr-2" />
+              Delete All
+            </Button>
             <Button variant="outline" onClick={handleMarkAllAsRead}>
               <CheckCircle className="h-4 w-4 mr-2" />
               Mark All Read
@@ -266,10 +384,6 @@ export default function AlertsPage() {
             <Button variant="outline" onClick={() => setShowCreateModal(true)}>
               <Bell className="h-4 w-4 mr-2" />
               Create Alert
-            </Button>
-            <Button>
-              <Bell className="h-4 w-4 mr-2" />
-              Notification Settings
             </Button>
           </div>
         </div>

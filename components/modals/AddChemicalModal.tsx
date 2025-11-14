@@ -10,27 +10,49 @@ interface AddChemicalModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (chemical: Omit<Chemical, 'id'>) => void;
+  chemical?: Chemical | null;
+  isEdit?: boolean;
 }
 
-export default function AddChemicalModal({ isOpen, onClose, onSave }: AddChemicalModalProps) {
+export default function AddChemicalModal({ isOpen, onClose, onSave, chemical, isEdit = false }: AddChemicalModalProps) {
   const [formData, setFormData] = useState({
-    name: '',
-    formula: '',
-    category: '',
-    quantity: 0,
-    unit: 'kg',
-    batchNo: '',
-    expiryDate: '',
-    reorderThreshold: 0,
-    supplier: '',
-    costPerUnit: 0,
-    location: '',
-    status: 'active' as Chemical['status']
+    name: chemical?.name || '',
+    formula: chemical?.formula || '',
+    category: chemical?.category || '',
+    quantity: chemical?.quantity || 0,
+    unit: chemical?.unit || 'kg',
+    batchNo: chemical?.batchNo || '',
+    expiryDate: chemical?.expiryDate ? new Date(chemical.expiryDate).toISOString().split('T')[0] : '',
+    reorderThreshold: chemical?.reorderThreshold || 0,
+    supplier: chemical?.supplier || '',
+    costPerUnit: chemical?.costPerUnit || 0,
+    location: chemical?.location || '',
+    status: chemical?.status || ('active' as Chemical['status'])
   });
 
   const [isLoading, setIsLoading] = useState(false);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+
+  // Update form when chemical prop changes
+  useEffect(() => {
+    if (chemical) {
+      setFormData({
+        name: chemical.name || '',
+        formula: chemical.formula || '',
+        category: chemical.category || '',
+        quantity: chemical.quantity || 0,
+        unit: chemical.unit || 'kg',
+        batchNo: chemical.batchNo || '',
+        expiryDate: chemical.expiryDate ? new Date(chemical.expiryDate).toISOString().split('T')[0] : '',
+        reorderThreshold: chemical.reorderThreshold || 0,
+        supplier: chemical.supplier || '',
+        costPerUnit: chemical.costPerUnit || 0,
+        location: chemical.location || '',
+        status: chemical.status || 'active'
+      });
+    }
+  }, [chemical]);
 
   // Fetch suppliers when modal opens
   useEffect(() => {
@@ -58,33 +80,55 @@ export default function AddChemicalModal({ isOpen, onClose, onSave }: AddChemica
     setIsLoading(true);
 
     try {
-      const newChemical: Omit<Chemical, 'id'> = {
-        ...formData,
-        lastUpdated: new Date().toISOString().split('T')[0]
-      };
+      // Save to MongoDB via API
+      const url = isEdit && chemical?.id 
+        ? `/api/chemicals/${chemical.id}`
+        : '/api/chemicals';
+      
+      const method = isEdit ? 'PUT' : 'POST';
 
-      onSave(newChemical);
-      
-      // Reset form
-      setFormData({
-        name: '',
-        formula: '',
-        category: '',
-        quantity: 0,
-        unit: 'kg',
-        batchNo: '',
-        expiryDate: '',
-        reorderThreshold: 0,
-        supplier: '',
-        costPerUnit: 0,
-        location: '',
-        status: 'active'
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
       });
-      
-      onClose();
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        window.alert(isEdit ? 'Chemical updated successfully!' : 'Chemical added successfully!');
+        
+        // Reset form if not editing
+        if (!isEdit) {
+          setFormData({
+            name: '',
+            formula: '',
+            category: '',
+            quantity: 0,
+            unit: 'kg',
+            batchNo: '',
+            expiryDate: '',
+            reorderThreshold: 0,
+            supplier: '',
+            costPerUnit: 0,
+            location: '',
+            status: 'active'
+          });
+        }
+        
+        // Call onSave to refresh parent component and wait for it to complete
+        await onSave(data.data);
+        
+        // Close modal after parent has refreshed
+        onClose();
+      } else {
+        window.alert(data.error || `Failed to ${isEdit ? 'update' : 'add'} chemical. Please try again.`);
+      }
     } catch (error) {
-      console.error('Error adding chemical:', error);
-      alert('Failed to add chemical. Please try again.');
+      console.error(`Error ${isEdit ? 'updating' : 'adding'} chemical:`, error);
+      window.alert(`Failed to ${isEdit ? 'update' : 'add'} chemical. Please try again.`);
     } finally {
       setIsLoading(false);
     }
@@ -97,7 +141,9 @@ export default function AddChemicalModal({ isOpen, onClose, onSave }: AddChemica
       <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6 border-b border-gray-200">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-gray-900">Add New Chemical</h2>
+            <h2 className="text-xl font-bold text-gray-900">
+              {isEdit ? `Edit ${chemical?.name}` : 'Add New Chemical'}
+            </h2>
             <Button variant="ghost" onClick={onClose}>
               <X className="h-5 w-5" />
             </Button>
