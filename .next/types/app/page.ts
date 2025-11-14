@@ -1,4 +1,4 @@
-// File: /Users/prathampatel/Desktop/inventory ambica/app/page.tsx
+// File: /Users/prathampatel/Desktop/Desktop/inventory ambica project/app/page.tsx
 import * as entry from '../../../app/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

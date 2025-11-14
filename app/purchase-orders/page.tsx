@@ -23,13 +23,13 @@ import {
   XCircle,
   Clock
 } from 'lucide-react';
-import { mockPurchaseOrders, mockSuppliers } from '@/lib/mockData';
 import { formatCurrency, formatDate, exportToCSV } from '@/lib/utils';
 import { PurchaseOrder } from '@/types';
 import { sendPO, trackDelivery } from '@/lib/automation';
+import AddPurchaseOrderModal from '@/components/modals/AddPurchaseOrderModal';
 
 export default function PurchaseOrdersPage() {
-  const [orders, setOrders] = useState<PurchaseOrder[]>(mockPurchaseOrders);
+  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
@@ -97,6 +97,15 @@ export default function PurchaseOrdersPage() {
 
   const handleExport = () => {
     exportToCSV(filteredOrders, `purchase-orders-${Date.now()}.csv`);
+  };
+
+  const handleCreatePurchaseOrder = (newPO: Omit<PurchaseOrder, 'id'>) => {
+    const purchaseOrder: PurchaseOrder = {
+      ...newPO,
+      id: Date.now().toString()
+    };
+    setOrders(prev => [purchaseOrder, ...prev]);
+    alert(`Purchase Order ${purchaseOrder.poNumber} created successfully!`);
   };
 
   const getStatusIcon = (status: string) => {
@@ -285,9 +294,7 @@ export default function PurchaseOrdersPage() {
                   <TableCell>
                     <div>
                       <p className="font-medium text-gray-900">{order.supplier}</p>
-                      <p className="text-sm text-gray-600">
-                        {mockSuppliers.find(s => s.name === order.supplier)?.contact || 'N/A'}
-                      </p>
+                      <p className="text-sm text-gray-600">Supplier Contact</p>
                     </div>
                   </TableCell>
 
@@ -476,6 +483,13 @@ export default function PurchaseOrdersPage() {
             </div>
           </div>
         )}
+
+        {/* Create Purchase Order Modal */}
+        <AddPurchaseOrderModal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onSave={handleCreatePurchaseOrder}
+        />
       </div>
     </Layout>
   );

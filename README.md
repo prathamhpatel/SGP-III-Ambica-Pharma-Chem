@@ -115,16 +115,21 @@ A professional, production-ready inventory management dashboard built for chemic
    npm install
    ```
 
-2. **Run Development Server**
+2. **Initialize Database (Optional)**
+   ```bash
+   npm run init-db
+   ```
+   This creates empty collections in MongoDB. The database will be fresh with no sample data.
+
+3. **Run Development Server**
    ```bash
    npm run dev
    ```
 
-3. **Access Application**
+4. **Access Application**
    - Open [http://localhost:3000](http://localhost:3000)
-   - Login with demo credentials:
-     - Email: `admin@ambicapharma.com`
-     - Password: `admin123`
+   - Start by adding chemicals and suppliers through the UI
+   - The database starts completely empty - no sample data included
 
 ## 🔗 n8n Integration Ready
 

@@ -19,36 +19,113 @@ import {
   RefreshCw,
   ExternalLink
 } from 'lucide-react';
-import { mockDashboardStats, mockChemicals, mockAlerts, mockPurchaseOrders } from '@/lib/mockData';
+import { apiService } from '@/lib/api';
 import { formatCurrency, formatDate, calculateDaysUntilExpiry } from '@/lib/utils';
 
 export default function Dashboard() {
-  const [stats, setStats] = useState(mockDashboardStats);
+  const [stats, setStats] = useState({
+    totalChemicals: 0,
+    lowStockItems: 0,
+    expiringSoon: 0,
+    ordersThisMonth: 0,
+    totalValue: 0,
+    activeSuppliers: 0,
+    pendingOrders: 0,
+    criticalAlerts: 0
+  });
+  const [chemicals, setChemicals] = useState([]);
+  const [suppliers, setSuppliers] = useState([]);
+  const [alerts, setAlerts] = useState([]);
+  const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
 
-  const lowStockChemicals = mockChemicals.filter(chemical => 
+  // Fetch data from database
+  const fetchDashboardData = async () => {
+    setDataLoading(true);
+    try {
+      const [chemicalsRes, suppliersRes] = await Promise.all([
+        apiService.getChemicals(),
+        apiService.getSuppliers()
+      ]);
+
+      const chemicalsData = chemicalsRes.success ? chemicalsRes.data || [] : [];
+      const suppliersData = suppliersRes.success ? suppliersRes.data || [] : [];
+
+      setChemicals(chemicalsData);
+      setSuppliers(suppliersData);
+
+      // Calculate stats from actual data
+      const lowStockItems = chemicalsData.filter(chemical => 
+        chemical.quantity <= chemical.reorderThreshold
+      );
+
+      const expiringSoon = chemicalsData.filter(chemical => {
+        const daysUntilExpiry = calculateDaysUntilExpiry(chemical.expiryDate);
+        return daysUntilExpiry <= 90 && daysUntilExpiry > 0;
+      });
+
+      const totalValue = chemicalsData.reduce((sum, chemical) => 
+        sum + (chemical.quantity * chemical.costPerUnit), 0
+      );
+
+      setStats({
+        totalChemicals: chemicalsData.length,
+        lowStockItems: lowStockItems.length,
+        expiringSoon: expiringSoon.length,
+        ordersThisMonth: 0, // Will be calculated when PO API is implemented
+        totalValue: totalValue,
+        activeSuppliers: suppliersData.filter(s => s.status === 'active').length,
+        pendingOrders: 0, // Will be calculated when PO API is implemented
+        criticalAlerts: 0 // Will be calculated when alerts API is implemented
+      });
+
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+    } finally {
+      setDataLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const lowStockChemicals = chemicals.filter(chemical => 
     chemical.quantity <= chemical.reorderThreshold
   );
 
-  const recentOrders = mockPurchaseOrders
+  const recentOrders = purchaseOrders
     .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime())
     .slice(0, 5);
 
-  const criticalAlerts = mockAlerts
+  const criticalAlerts = alerts
     .filter(alert => alert.severity === 'critical' || alert.severity === 'high')
     .slice(0, 3);
 
-  const expiringSoon = mockChemicals.filter(chemical => {
+  const expiringSoon = chemicals.filter(chemical => {
     const daysUntilExpiry = calculateDaysUntilExpiry(chemical.expiryDate);
     return daysUntilExpiry <= 90 && daysUntilExpiry > 0;
   });
 
   const refreshData = async () => {
     setIsLoading(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await fetchDashboardData();
     setIsLoading(false);
   };
+
+  if (dataLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading dashboard...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -57,7 +134,12 @@ export default function Dashboard() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-            <p className="text-gray-600">Welcome back! Here's what's happening with your inventory.</p>
+            <p className="text-gray-600">
+              {stats.totalChemicals === 0 
+                ? "Welcome! Start by adding chemicals and suppliers to your inventory." 
+                : "Welcome back! Here's what's happening with your inventory."
+              }
+            </p>
           </div>
           <Button 
             onClick={refreshData} 
@@ -75,29 +157,29 @@ export default function Dashboard() {
           <StatCard
             title="Total Chemicals"
             value={stats.totalChemicals}
-            change="+2 this month"
-            changeType="positive"
+            change={stats.totalChemicals === 0 ? "No chemicals added yet" : "Total in inventory"}
+            changeType={stats.totalChemicals === 0 ? "neutral" : "positive"}
             icon={<Package className="h-6 w-6 text-primary-600" />}
           />
           <StatCard
             title="Low Stock Items"
             value={stats.lowStockItems}
-            change="3 need attention"
-            changeType="negative"
+            change={stats.lowStockItems === 0 ? "All items well stocked" : `${stats.lowStockItems} need attention`}
+            changeType={stats.lowStockItems === 0 ? "positive" : "negative"}
             icon={<AlertTriangle className="h-6 w-6 text-warning-600" />}
           />
           <StatCard
             title="Orders This Month"
             value={stats.ordersThisMonth}
-            change="+1 from last month"
-            changeType="positive"
+            change="Purchase orders feature coming soon"
+            changeType="neutral"
             icon={<ShoppingCart className="h-6 w-6 text-blue-600" />}
           />
           <StatCard
             title="Total Inventory Value"
             value={formatCurrency(stats.totalValue)}
-            change="+5.2% from last month"
-            changeType="positive"
+            change={stats.totalValue === 0 ? "No inventory value yet" : "Current inventory value"}
+            changeType={stats.totalValue === 0 ? "neutral" : "positive"}
             icon={<DollarSign className="h-6 w-6 text-success-600" />}
           />
         </div>

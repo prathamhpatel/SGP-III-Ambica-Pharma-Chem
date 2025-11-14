@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -19,20 +19,46 @@ import {
   MapPin,
   RefreshCw
 } from 'lucide-react';
-import { mockChemicals } from '@/lib/mockData';
 import { formatCurrency, formatDate, calculateDaysUntilExpiry, exportToCSV } from '@/lib/utils';
 import { Chemical } from '@/types';
 import { triggerReorder } from '@/lib/automation';
+import { apiService } from '@/lib/api';
 import AddChemicalModal from '@/components/modals/AddChemicalModal';
 
 export default function StockManagement() {
-  const [chemicals, setChemicals] = useState<Chemical[]>(mockChemicals);
+  const [chemicals, setChemicals] = useState<Chemical[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
+
+  // Fetch chemicals data
+  const fetchChemicals = async () => {
+    setDataLoading(true);
+    try {
+      const response = await apiService.getChemicals();
+      if (response.success && response.data) {
+        setChemicals(response.data as Chemical[]);
+      } else {
+        console.error('Failed to fetch chemicals:', response.error);
+        // Fallback to empty array if API fails
+        setChemicals([]);
+      }
+    } catch (error) {
+      console.error('Error fetching chemicals:', error);
+      setChemicals([]);
+    } finally {
+      setDataLoading(false);
+    }
+  };
+
+  // Load data on component mount
+  useEffect(() => {
+    fetchChemicals();
+  }, []);
 
   // Filter and search logic
   const filteredChemicals = useMemo(() => {
@@ -51,7 +77,7 @@ export default function StockManagement() {
 
   // Get unique categories for filter
   const categories = useMemo(() => {
-    const uniqueCategories = [...new Set(chemicals.map(c => c.category))];
+    const uniqueCategories = Array.from(new Set(chemicals.map(c => c.category)));
     return uniqueCategories.sort();
   }, [chemicals]);
 
@@ -95,14 +121,21 @@ export default function StockManagement() {
     );
   };
 
-  const handleAddChemical = (newChemical: Omit<Chemical, 'id'>) => {
-    const chemical: Chemical = {
-      ...newChemical,
-      id: `chem-${Date.now()}`,
-    };
-    
-    setChemicals(prev => [...prev, chemical]);
-    alert(`Chemical "${chemical.name}" added successfully!`);
+  const handleAddChemical = async (newChemical: Omit<Chemical, 'id'>) => {
+    try {
+      const response = await apiService.createChemical(newChemical);
+      if (response.success && response.data) {
+        setChemicals(prev => [...prev, response.data as Chemical]);
+        alert(`Chemical "${(response.data as Chemical).name}" added successfully!`);
+        // Refresh data to get updated list
+        fetchChemicals();
+      } else {
+        alert(`Failed to add chemical: ${response.error}`);
+      }
+    } catch (error) {
+      console.error('Error adding chemical:', error);
+      alert('Failed to add chemical. Please try again.');
+    }
   };
 
   const getStockStatus = (chemical: Chemical) => {
@@ -148,7 +181,7 @@ export default function StockManagement() {
                 placeholder="Search chemicals..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
             </div>
 
@@ -158,7 +191,7 @@ export default function StockManagement() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none"
+                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none"
               >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
@@ -173,7 +206,7 @@ export default function StockManagement() {
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                className="px-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none"
+                className="px-4 py-2 w-full border border-gray-300 rounded-lg text-gray-900 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent appearance-none"
               >
                 <option value="all">All Categories</option>
                 {categories.map(category => (
@@ -213,7 +246,16 @@ export default function StockManagement() {
 
         {/* Stock Table */}
         <Card>
-          <Table>
+          {dataLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Loading chemicals...</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <Table>
             <TableHeader>
               <TableRow>
                 <TableCell header>
@@ -350,12 +392,14 @@ export default function StockManagement() {
             </TableBody>
           </Table>
           
-          {filteredChemicals.length === 0 && (
-            <div className="text-center py-12">
-              <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-lg font-medium text-gray-900">No chemicals found</p>
-              <p className="text-gray-600">Try adjusting your search or filter criteria</p>
-            </div>
+              {filteredChemicals.length === 0 && (
+                <div className="text-center py-12">
+                  <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-lg font-medium text-gray-900">No chemicals found</p>
+                  <p className="text-gray-600">Try adjusting your search or filter criteria</p>
+                </div>
+              )}
+            </>
           )}
         </Card>
 

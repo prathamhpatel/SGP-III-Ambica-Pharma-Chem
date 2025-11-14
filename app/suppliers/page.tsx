@@ -24,14 +24,14 @@ import {
   Save,
   Building
 } from 'lucide-react';
-import { mockSuppliers, mockChemicals } from '@/lib/mockData';
+import { apiService } from '@/lib/api';
 import { formatDate, exportToCSV } from '@/lib/utils';
 import { Supplier } from '@/types';
 import { syncSupplierData } from '@/lib/automation';
 import AddSupplierModal from '@/components/modals/AddSupplierModal';
 
 export default function SuppliersPage() {
-  const [suppliers, setSuppliers] = useState<Supplier[]>(mockSuppliers);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [ratingFilter, setRatingFilter] = useState<string>('all');
@@ -40,15 +40,19 @@ export default function SuppliersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
 
-  const handleAddSupplier = (newSupplierData: Omit<Supplier, 'id' | 'totalOrders'>) => {
-    const supplier: Supplier = {
-      ...newSupplierData,
-      id: `supplier-${Date.now()}`,
-      totalOrders: 0,
-    };
-    
-    setSuppliers(prev => [...prev, supplier]);
-    alert(`Supplier "${supplier.name}" added successfully!`);
+  const handleAddSupplier = async (newSupplierData: Omit<Supplier, 'id' | 'totalOrders'>) => {
+    try {
+      const response = await apiService.createSupplier(newSupplierData);
+      if (response.success && response.data) {
+        setSuppliers(prev => [...prev, response.data as Supplier]);
+        alert(`Supplier "${(response.data as Supplier).name}" added successfully!`);
+      } else {
+        alert(`Failed to add supplier: ${response.error}`);
+      }
+    } catch (error) {
+      console.error('Error adding supplier:', error);
+      alert('Failed to add supplier. Please try again.');
+    }
   };
 
   const handleEditSupplier = (updatedSupplierData: Omit<Supplier, 'id' | 'totalOrders'>) => {

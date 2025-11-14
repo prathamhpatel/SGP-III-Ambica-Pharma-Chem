@@ -6,26 +6,30 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "init-db": "node scripts/seed-database.js",
+    "view-db": "node scripts/view-database.js"
   },
   "dependencies": {
+    "clsx": "^2.0.0",
+    "date-fns": "^2.30.0",
+    "lucide-react": "^0.294.0",
+    "mongodb": "^6.19.0",
+    "mongoose": "^8.18.0",
     "next": "14.0.4",
     "react": "^18",
     "react-dom": "^18",
-    "lucide-react": "^0.294.0",
-    "recharts": "^2.8.0",
-    "date-fns": "^2.30.0",
-    "clsx": "^2.0.0"
+    "recharts": "^2.8.0"
   },
   "devDependencies": {
-    "typescript": "^5",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "autoprefixer": "^10.0.1",
+    "eslint": "^8",
+    "eslint-config-next": "14.0.4",
     "postcss": "^8",
     "tailwindcss": "^3.3.0",
-    "eslint": "^8",
-    "eslint-config-next": "14.0.4"
+    "typescript": "^5"
   }
 }

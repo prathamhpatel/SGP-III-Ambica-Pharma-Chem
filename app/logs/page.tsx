@@ -21,17 +21,18 @@ import {
   RefreshCw,
   FileText
 } from 'lucide-react';
-import { mockActivityLogs } from '@/lib/mockData';
 import { formatDateTime, exportToCSV } from '@/lib/utils';
 import { ActivityLog } from '@/types';
+import AddActivityLogModal from '@/components/modals/AddActivityLogModal';
 
 export default function ActivityLogsPage() {
-  const [logs, setLogs] = useState<ActivityLog[]>(mockActivityLogs);
+  const [logs, setLogs] = useState<ActivityLog[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [severityFilter, setSeverityFilter] = useState<string>('all');
   const [userFilter, setUserFilter] = useState<string>('all');
   const [dateRange, setDateRange] = useState<string>('all');
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   // Filter logs
   const filteredLogs = useMemo(() => {
@@ -81,6 +82,16 @@ export default function ActivityLogsPage() {
     exportToCSV(filteredLogs, `activity-logs-${Date.now()}.csv`);
   };
 
+  const handleCreateActivityLog = (newLog: Omit<ActivityLog, 'id' | 'timestamp'>) => {
+    const activityLog: ActivityLog = {
+      ...newLog,
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString()
+    };
+    setLogs(prev => [activityLog, ...prev]);
+    alert(`Activity log "${activityLog.action}" created successfully!`);
+  };
+
   const getCategoryIcon = (category: string) => {
     switch (category) {
       case 'stock_update': return <Package className="h-4 w-4" />;
@@ -119,6 +130,10 @@ export default function ActivityLogsPage() {
             <Button variant="outline">
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
+            </Button>
+            <Button onClick={() => setShowCreateModal(true)}>
+              <Activity className="h-4 w-4 mr-2" />
+              Add Log Entry
             </Button>
           </div>
         </div>
@@ -305,6 +320,13 @@ export default function ActivityLogsPage() {
             )}
           </div>
         </Card>
+
+        {/* Create Activity Log Modal */}
+        <AddActivityLogModal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          onSave={handleCreateActivityLog}
+        />
       </div>
     </Layout>
   );

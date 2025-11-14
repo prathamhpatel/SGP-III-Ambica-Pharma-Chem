@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Button from '@/components/ui/Button';
 import { X, Save } from 'lucide-react';
-import { Chemical } from '@/types';
+import { Chemical, Supplier } from '@/types';
+import { apiService } from '@/lib/api';
 
 interface AddChemicalModalProps {
   isOpen: boolean;
@@ -28,6 +29,29 @@ export default function AddChemicalModal({ isOpen, onClose, onSave }: AddChemica
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+
+  // Fetch suppliers when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchSuppliers();
+    }
+  }, [isOpen]);
+
+  const fetchSuppliers = async () => {
+    setLoadingSuppliers(true);
+    try {
+      const response = await apiService.getSuppliers();
+      if (response.success && response.data) {
+        setSuppliers(response.data as Supplier[]);
+      }
+    } catch (error) {
+      console.error('Error fetching suppliers:', error);
+    } finally {
+      setLoadingSuppliers(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,7 +112,7 @@ export default function AddChemicalModal({ isOpen, onClose, onSave }: AddChemica
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 required
               />
             </div>
@@ -99,7 +123,7 @@ export default function AddChemicalModal({ isOpen, onClose, onSave }: AddChemica
                 type="text"
                 value={formData.formula}
                 onChange={(e) => setFormData({ ...formData, formula: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 placeholder="e.g., NaCl"
               />
             </div>
@@ -111,7 +135,7 @@ export default function AddChemicalModal({ isOpen, onClose, onSave }: AddChemica
               <select
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 required
               >
                 <option value="">Select Category</option>
@@ -131,16 +155,27 @@ export default function AddChemicalModal({ isOpen, onClose, onSave }: AddChemica
               <select
                 value={formData.supplier}
                 onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 required
+                disabled={loadingSuppliers}
               >
-                <option value="">Select Supplier</option>
-                <option value="ChemCorp Ltd">ChemCorp Ltd</option>
-                <option value="Industrial Chemicals Inc">Industrial Chemicals Inc</option>
-                <option value="Solvent Solutions">Solvent Solutions</option>
-                <option value="Pure Chemicals Co">Pure Chemicals Co</option>
-                <option value="Mineral Corp">Mineral Corp</option>
+                <option value="">
+                  {loadingSuppliers ? 'Loading suppliers...' : 'Select Supplier'}
+                </option>
+                {suppliers.map((supplier) => (
+                  <option key={supplier.id} value={supplier.name}>
+                    {supplier.name}
+                  </option>
+                ))}
+                {suppliers.length === 0 && !loadingSuppliers && (
+                  <option value="" disabled>No suppliers available - Add suppliers first</option>
+                )}
               </select>
+              {suppliers.length === 0 && !loadingSuppliers && (
+                <p className="mt-1 text-sm text-orange-600">
+                  No suppliers found. Please add suppliers first from the Suppliers page.
+                </p>
+              )}
             </div>
           </div>
 
@@ -153,7 +188,7 @@ export default function AddChemicalModal({ isOpen, onClose, onSave }: AddChemica
                 step="0.01"
                 value={formData.quantity}
                 onChange={(e) => setFormData({ ...formData, quantity: parseFloat(e.target.value) || 0 })}
-                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 required
               />
             </div>
@@ -163,7 +198,7 @@ export default function AddChemicalModal({ isOpen, onClose, onSave }: AddChemica
               <select
                 value={formData.unit}
                 onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 required
               >
                 <option value="kg">kg</option>
@@ -182,7 +217,7 @@ export default function AddChemicalModal({ isOpen, onClose, onSave }: AddChemica
                 step="0.01"
                 value={formData.reorderThreshold}
                 onChange={(e) => setFormData({ ...formData, reorderThreshold: parseFloat(e.target.value) || 0 })}
-                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 required
               />
             </div>
@@ -195,7 +230,7 @@ export default function AddChemicalModal({ isOpen, onClose, onSave }: AddChemica
                 type="text"
                 value={formData.batchNo}
                 onChange={(e) => setFormData({ ...formData, batchNo: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 placeholder="e.g., BATCH-2024-001"
                 required
               />
@@ -207,7 +242,7 @@ export default function AddChemicalModal({ isOpen, onClose, onSave }: AddChemica
                 type="date"
                 value={formData.expiryDate}
                 onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 required
               />
             </div>
@@ -222,7 +257,7 @@ export default function AddChemicalModal({ isOpen, onClose, onSave }: AddChemica
                 step="0.01"
                 value={formData.costPerUnit}
                 onChange={(e) => setFormData({ ...formData, costPerUnit: parseFloat(e.target.value) || 0 })}
-                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 required
               />
             </div>
@@ -233,7 +268,7 @@ export default function AddChemicalModal({ isOpen, onClose, onSave }: AddChemica
                 type="text"
                 value={formData.location}
                 onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="mt-1 block w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                 placeholder="e.g., Warehouse A-1"
                 required
               />
